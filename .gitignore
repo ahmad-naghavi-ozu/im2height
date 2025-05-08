@@ -24,6 +24,7 @@ ENV/
 
 # Project specific ignores
 documents/
+tools/
 *.pdf
 
 # Model files and datasets that might be large
