@@ -64,7 +64,7 @@ class DFC2023Dataset(torch.utils.data.Dataset):
         
         # Create directories for NPY data (according to README.md structure)
         # Use the IM2HEIGHT root directory for the NPY files, not relative to dataset_root
-        script_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        script_dir = os.path.dirname(os.path.abspath(__file__))
         self.data_dir = os.path.join(script_dir, "data")
         self.input_npy_dir = os.path.join(self.data_dir, split, "x")
         self.target_npy_dir = os.path.join(self.data_dir, split, "y")
@@ -73,7 +73,8 @@ class DFC2023Dataset(torch.utils.data.Dataset):
         
         # Flag to avoid unnecessary conversions if files already exist
         self.convert_files = True
-        print(f"NPY files will be saved to: {self.data_dir}")
+        # Log where files will be saved
+        # print(f"NPY files will be saved to: {self.data_dir}")
 
     def __len__(self):
         return len(self.input_files)
@@ -135,12 +136,22 @@ class DFC2023Dataset(torch.utils.data.Dataset):
         img = np.pad(img, ((padding, padding), (padding, padding), (0, 0)), "reflect")
         label = np.pad(label, ((padding, padding), (padding, padding), (0, 0)), "reflect")
         
-        # Apply augmentations
+        # Ensure channels are in the last dimension for augmentation (channels_last)
+        if img.shape[0] == 1 or img.shape[0] == 3:  # If channels are first (1 or 3, C×H×W)
+            img = np.transpose(img, (1, 2, 0))  # Convert to H×W×C
+        if label.shape[0] == 1:  # If channels are first
+            label = np.transpose(label, (1, 2, 0))  # Convert to H×W×C
+            
+        # Apply augmentations (albumentations expects channels_last)
         img, label = self.augmenter(img, label)
         
-        # Convert to PyTorch tensors and ensure channel-first format
-        img_tensor = torch.Tensor(img).permute((2, 0, 1))
-        label_tensor = torch.Tensor(label).permute((2, 0, 1))
+        # Make copies to ensure contiguous memory (fixes negative stride issues)
+        img = np.ascontiguousarray(img)
+        label = np.ascontiguousarray(label)
+        
+        # Convert back to PyTorch tensors with channel-first format
+        img_tensor = torch.Tensor(img).permute((2, 0, 1))  # H×W×C -> C×H×W
+        label_tensor = torch.Tensor(label).permute((2, 0, 1))  # H×W×C -> C×H×W
         
         return img_tensor, label_tensor
 
@@ -172,11 +183,12 @@ class DFC2023PredictionDataset(torch.utils.data.Dataset):
         
         # Set up the directory for NPY files matching the expected structure in README.md
         # Use the IM2HEIGHT root directory for the NPY files
-        script_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        script_dir = os.path.dirname(os.path.abspath(__file__))
         self.data_dir = os.path.join(script_dir, "data")
         self.input_npy_dir = os.path.join(self.data_dir, split, "x")
         os.makedirs(self.input_npy_dir, exist_ok=True)
-        print(f"NPY files will be saved to: {self.data_dir}")
+        # Comment out the print statement to keep the terminal clean
+        # print(f"NPY files will be saved to: {self.data_dir}")
 
     def __len__(self):
         return len(self.input_files)
@@ -188,32 +200,95 @@ class DFC2023PredictionDataset(torch.utils.data.Dataset):
         # Path for saving the converted npy file
         npy_path = os.path.join(self.input_npy_dir, f"{file_basename}.npy")
         
-        # Check if converted file already exists
+        # If the NPY file exists, but is corrupted or has wrong dimensions, 
+        # let's remove it and regenerate it
         if os.path.exists(npy_path):
-            img = np.load(npy_path)
-            if len(img.shape) == 2:  # If it's a 2D array, add channel dimension
-                img = np.expand_dims(img, axis=2)
-        # Load the input image if conversion needed
-        elif file_path.endswith('.jpg') or file_path.endswith('.png') or file_path.endswith('.tif') or file_path.endswith('.tiff'):
-            # Load image using PIL (handles jpg, png, tif)
-            img = np.array(Image.open(file_path))
+            try:
+                img = np.load(npy_path)
+                
+                # Check if the file has reasonable dimensions for an image
+                if len(img.shape) >= 2:
+                    # If any dimension is suspiciously small (like 3 for channels mistakenly used as height)
+                    # or suspiciously large (>1000 for height/width, which could be wrong dimension order)
+                    if (len(img.shape) == 3 and 
+                        (img.shape[0] > 10 or img.shape[1] < 10 or img.shape[2] < 10)):
+                        print(f"Suspicious NPY file dimensions: {img.shape}, regenerating...")
+                        os.remove(npy_path)
+                        # Set img to None so we regenerate below
+                        img = None
+                    # For 2D arrays, check reasonable image dimensions
+                    elif len(img.shape) == 2 and (img.shape[0] < 10 or img.shape[1] < 10):
+                        print(f"Suspicious NPY file dimensions: {img.shape}, regenerating...")
+                        os.remove(npy_path)
+                        img = None
+            except Exception as e:
+                print(f"Error loading NPY file {npy_path}: {e}")
+                os.remove(npy_path)
+                img = None
+        else:
+            img = None
             
-            # Ensure proper channel dimension
-            if len(img.shape) == 2:
-                img = np.expand_dims(img, axis=2)
+        # If we need to generate the image data
+        if img is None:
+            # Load the input image if not already cached
+            if file_path.endswith('.jpg') or file_path.endswith('.png') or file_path.endswith('.tif') or file_path.endswith('.tiff'):
+                # Load image using PIL (handles jpg, png, tif)
+                img = np.array(Image.open(file_path))
                 
-            # Save the numpy array with all channels preserved
-            np.save(npy_path, img)
-        else:  # Assume it's a numpy file
-            img = np.load(file_path)
-            if len(img.shape) == 2:  # If it's a 2D array, add channel dimension
-                img = np.expand_dims(img, axis=2)
+                # Ensure proper channel dimension (in channel-first format)
+                if len(img.shape) == 2:
+                    img = np.expand_dims(img, axis=0)  # Add as first dimension (channel-first)
+                elif len(img.shape) == 3:
+                    img = np.transpose(img, (2, 0, 1))  # H×W×C -> C×H×W
+                    
+                # Save the numpy array with all channels preserved
+                np.save(npy_path, img)
+            else:  # Assume it's a numpy file
+                img = np.load(file_path)
+                if len(img.shape) == 2:  # If it's a 2D array, add channel dimension
+                    img = np.expand_dims(img, axis=0)  # Add as first dimension (channel-first)
+                elif len(img.shape) == 3 and img.shape[2] <= 4:
+                    # Convert from channels-last to channels-first
+                    img = np.transpose(img, (2, 0, 1))  # H×W×C -> C×H×W
                 
-        # Add padding similar to NpyPredictionDataset
-        padding = 3
-        img = np.pad(img, ((padding, padding), (padding, padding), (0, 0)), "reflect")
+        # For RGB images, ensure we use only the standard 3 channels
+        if self.input_type == 'rgb' and img.shape[0] > 3:
+            print(f"Limiting RGB input from {img.shape[0]} to 3 channels")
+            img = img[:3]  # Keep only first 3 channels for RGB
         
-        # Convert to PyTorch tensor and ensure channel-first format
-        img_tensor = torch.Tensor(img).permute((2, 0, 1))
+        # For grayscale (SAR), ensure we use only 1 channel
+        if self.input_type == 'sar' and img.shape[0] > 1:
+            print(f"Limiting SAR input from {img.shape[0]} to 1 channel")
+            img = img[:1]  # Keep only first channel
+        
+        # Add padding similar to NpyPredictionDataset (applied to height and width)
+        padding = 3
+        img = np.pad(img, ((0, 0), (padding, padding), (padding, padding)), "reflect")
+        
+        # Ensure we're working with contiguous array (fix any negative stride issues)
+        img = np.ascontiguousarray(img)
+        
+        # Convert to PyTorch tensor - already in channel-first format
+        img_tensor = torch.Tensor(img)
+        
+        # Final sanity check on channel dimension
+        expected_channels = 3 if self.input_type == 'rgb' else 1
+        if img_tensor.shape[0] != expected_channels:
+            print(f"Warning: Tensor has {img_tensor.shape[0]} channels but expected {expected_channels}")
+            print(f"Full tensor shape: {img_tensor.shape}")
+            # Force the correct number of channels based on input_type
+            if self.input_type == 'rgb':
+                # Take first 3 channels or expand if needed
+                if img_tensor.shape[0] > 3:
+                    img_tensor = img_tensor[:3]
+                else:
+                    # If we have 1 channel but need 3, duplicate it
+                    img_tensor = img_tensor.expand(3, -1, -1)  
+            else:  # SAR (grayscale)
+                if img_tensor.shape[0] > 1:
+                    img_tensor = img_tensor[:1]
+                    
+        # Verify final tensor shape is appropriate for the model
+        print(f"Final tensor shape: {img_tensor.shape}")
         
         return file_path, img_tensor

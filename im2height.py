@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
-from pytorch_lightning.core.lightning import LightningModule
+from pytorch_lightning import LightningModule
 from nadam import Nadam
 from ssim import ssim
 
@@ -161,14 +161,14 @@ class Im2Height(LightningModule):
 
 		return tensorboard_logs
 
-	def validation_epoch_end(self, outputs):
-
-		avg_l1loss = torch.stack([x['val_l1loss'] for x in outputs]).mean()
-		avg_l2loss = torch.stack([x['val_l2loss'] for x in outputs]).mean()
-		avg_ssimloss = torch.stack([x['val_ssimloss'] for x in outputs]).mean()
-		tensorboard_logs = { 'val_l1loss': avg_l1loss, 'val_l2loss': avg_l2loss, 'val_ssimloss': avg_ssimloss }
-
-		return { 'val_l1loss': avg_l1loss, 'log': tensorboard_logs }
+	def on_validation_epoch_end(self):
+		# Get outputs from validation steps
+		outputs = self.trainer.callback_metrics
+		
+		# Log metrics for the epoch
+		self.log("val_l1loss", outputs.get("val_l1loss", 0))
+		self.log("val_l2loss", outputs.get("val_l2loss", 0))
+		self.log("val_ssimloss", outputs.get("val_ssimloss", 0))
 
 
 

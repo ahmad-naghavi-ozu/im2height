@@ -52,34 +52,51 @@ def run(dataset_path, output_dir="weights/dfc2023", input_type="rgb", target_typ
     
     # Check input sample to determine number of input channels
     sample_input, _ = train_dataset[0]
+    
+    # Ensure we're getting the channel count, not image dimensions
+    # For RGB images this should be 3, for grayscale 1
     in_channels = sample_input.shape[0]  # Channel dimension is first in PyTorch tensors
+    
+    # Sanity check - if channels > 4, it's likely being confused with image dimensions
+    if in_channels > 4:
+        print(f"Warning: Detected unusually high number of channels: {in_channels}")
+        print(f"Full tensor shape: {sample_input.shape}")
+        print("Assuming RGB input (3 channels) - adjust manually if needed")
+        in_channels = 3 if input_type == 'rgb' else 1
+    
     out_channels = 1  # Output is always height map with one channel
     
-    print(f"Detected input with {in_channels} channel(s)")
+    print(f"Using {in_channels} input channels for model")
 
     # Initialize model with detected number of channels
     model = Im2Height(in_channels=in_channels, out_channels=out_channels)
 
     # Set up trainer with callbacks for early stopping and model checkpointing
+    early_stop = EarlyStopping(
+        monitor='val_l1loss',
+        patience=patience,
+        verbose=False,
+        mode='min'
+    )
+    
+    checkpoint_callback = ModelCheckpoint(
+        dirpath=output_dir,
+        filename='best_run-{epoch:02d}-{val_l1loss:.4f}',
+        save_top_k=5,
+        verbose=True,
+        monitor='val_l1loss',
+        mode='min',
+        save_last=True
+    )
+    
+    # Set up trainer with callbacks
     trainer = Trainer(
-        gpus=gpu_count if gpu_count is not None else torch.cuda.device_count(),
+        devices=gpu_count if gpu_count is not None else torch.cuda.device_count(),
+        accelerator="gpu",
         num_nodes=1,
         default_root_dir=output_dir,
         max_epochs=max_epochs,
-        early_stop_callback=EarlyStopping(
-            monitor='val_l1loss',
-            patience=patience,
-            verbose=False,
-            mode='min'
-        ),
-        checkpoint_callback=ModelCheckpoint(
-            filepath=os.path.join(output_dir, 'best_run.ckpt'),
-            save_top_k=5,
-            verbose=True,
-            monitor='val_l1loss',
-            mode='min',
-            save_last=True
-        )
+        callbacks=[early_stop, checkpoint_callback]
     )
 
     # Train the model

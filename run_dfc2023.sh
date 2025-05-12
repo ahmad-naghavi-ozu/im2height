@@ -6,6 +6,7 @@ DATASET_PATH="/home/asfand/Ahmad/datasets/DFC2023Amini"
 INPUT_TYPE="rgb"
 TARGET_TYPE="dsm"
 ACTION="train"  # Default action: train
+GPUS=""        # Default: use all available GPUs
 
 # Help function
 function show_help {
@@ -19,6 +20,7 @@ function show_help {
     echo "  -t, --target TYPE         Target data type (default: $TARGET_TYPE)"
     echo "  -w, --weights PATH        Path to model weights (for prediction only)"
     echo "  -o, --output DIR          Output directory (for prediction only)"
+    echo "  -g, --gpus GPUs           Comma-separated list of GPU indices to use (e.g. '0,1' for first two GPUs)"
     echo ""
     echo "Examples:"
     echo "  ./run_dfc2023.sh --action preprocess"
@@ -58,6 +60,10 @@ while [[ $# -gt 0 ]]; do
             OUTPUT_DIR="$2"
             shift 2
             ;;
+        -g|--gpus)
+            GPUS="$2"
+            shift 2
+            ;;
         *)
             echo "Unknown option: $1"
             show_help
@@ -78,7 +84,11 @@ case $ACTION in
         ;;
     train)
         echo "=== Training Im2Height model on DFC2023Amini dataset ==="
-        python train_dfc2023.py --dataset_path "$DATASET_PATH" --input_type "$INPUT_TYPE" --target_type "$TARGET_TYPE"
+        if [ -z "$GPUS" ]; then
+            python train_dfc2023.py --dataset_path "$DATASET_PATH" --input_type "$INPUT_TYPE" --target_type "$TARGET_TYPE"
+        else
+            python train_dfc2023.py --dataset_path "$DATASET_PATH" --input_type "$INPUT_TYPE" --target_type "$TARGET_TYPE" --gpu_count "$GPUS"
+        fi
         ;;
     predict)
         if [ -z "$WEIGHTS" ]; then
@@ -101,7 +111,11 @@ case $ACTION in
         
         # Train
         echo "Step 2: Training model..."
-        python train_dfc2023.py --dataset_path "$DATASET_PATH" --input_type "$INPUT_TYPE" --target_type "$TARGET_TYPE"
+        if [ -z "$GPUS" ]; then
+            python train_dfc2023.py --dataset_path "$DATASET_PATH" --input_type "$INPUT_TYPE" --target_type "$TARGET_TYPE"
+        else
+            python train_dfc2023.py --dataset_path "$DATASET_PATH" --input_type "$INPUT_TYPE" --target_type "$TARGET_TYPE" --gpu_count "$GPUS"
+        fi
         
         # Find the best model weights
         BEST_WEIGHTS=$(find weights/dfc2023 -name "*best*.ckpt" | sort | tail -n 1)
