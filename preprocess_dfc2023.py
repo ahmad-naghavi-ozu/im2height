@@ -4,16 +4,20 @@ import numpy as np
 from PIL import Image
 from tqdm import tqdm
 
-def preprocess_dataset(dataset_path, output_path, input_type="rgb", target_type="dsm"):
+def preprocess_dataset(dataset_path, output_path=None, input_type="rgb", target_type="dsm"):
     """
     Preprocess the DFC2023Amini dataset by converting images to .npy format
     
     Args:
         dataset_path: Path to the DFC2023Amini dataset
-        output_path: Path to save the processed .npy files
+        output_path: Path to save the processed .npy files. If None, saves to 'data' in the current directory.
         input_type: Input data type ('rgb' or 'sar')
         target_type: Target data type (usually 'dsm')
     """
+    # If output_path is not specified, save to project root data directory
+    if output_path is None:
+        output_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+        print(f"No output path specified. Using default path: {output_path}")
     splits = ['train', 'valid', 'test']
     
     for split in splits:
@@ -45,9 +49,10 @@ def preprocess_dataset(dataset_path, output_path, input_type="rgb", target_type=
             
             if input_path.endswith(('.jpg', '.png', '.tif', '.tiff')):
                 img = np.array(Image.open(input_path))
-                # Take first channel if RGB, preserving dimensions
+                # Keep all channels for RGB images
                 if len(img.shape) == 3 and img.shape[2] == 3:
-                    img = img[:, :, 0:1]
+                    # Keep all three channels
+                    pass
                 elif len(img.shape) == 2:  # Add channel dimension if grayscale
                     img = np.expand_dims(img, axis=2)
             else:  # Already numpy file
@@ -87,8 +92,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Preprocess DFC2023Amini dataset for Im2Height model")
     parser.add_argument("-d", "--dataset_path", type=str, required=True,
                         help="Path to the DFC2023Amini dataset")
-    parser.add_argument("-o", "--output_path", type=str, required=True,
-                        help="Path to save the processed .npy files")
+    parser.add_argument("-o", "--output_path", type=str, required=False, default=None,
+                        help="Path to save the processed .npy files (defaults to 'data' in project root)")
     parser.add_argument("-i", "--input_type", type=str, default="rgb", choices=["rgb", "sar"],
                         help="Input data type")
     parser.add_argument("-t", "--target_type", type=str, default="dsm",

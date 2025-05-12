@@ -34,14 +34,16 @@ For this implementation:
 
 The Im2Height model expects input data in .npy format. You can use the `preprocess_dfc2023.py` script to convert the dataset to the required format:
 
-```
-python preprocess_dfc2023.py --dataset_path /path/to/DFC2023Amini --output_path /path/to/processed_dataset
+```bash
+python preprocess_dfc2023.py --dataset_path /home/asfand/Ahmad/datasets/DFC2023Amini
 ```
 
-This will create a new directory structure compatible with the original implementation:
+This will automatically generate NPY files in the `data/` directory of your IM2HEIGHT project with the structure expected by the original implementation.
+
+This will create a new directory structure compatible with the original implementation in your project root:
 
 ```
-processed_dataset/
+data/
 ├── train/
 │   ├── x/ (input data as .npy files)
 │   └── y/ (target data as .npy files)
@@ -56,7 +58,7 @@ processed_dataset/
 ### Preprocessing options
 
 - `--dataset_path`: Path to the DFC2023Amini dataset (required)
-- `--output_path`: Path to save the processed .npy files (required)
+- `--output_path`: Path to save the processed .npy files (optional, defaults to `data/` in project root)
 - `--input_type`: Input data type to use (`rgb` or `sar`, default: `rgb`)
 - `--target_type`: Target data type to use (default: `dsm`)
 
@@ -83,8 +85,8 @@ test_loader = torch.utils.data.DataLoader(NpyDataset('path/to/processed_dataset/
 
 Alternatively, you can use the `train_dfc2023.py` script that handles the dataset conversion on-the-fly:
 
-```
-python train_dfc2023.py --dataset_path /path/to/DFC2023Amini --output_dir weights/dfc2023 --input_type rgb
+```bash
+python train_dfc2023.py --dataset_path /home/asfand/Ahmad/datasets/DFC2023Amini --output_dir weights/dfc2023 --input_type rgb
 ```
 
 #### Options for train_dfc2023.py
@@ -105,16 +107,16 @@ You have two options for running predictions:
 
 If you've preprocessed your data using `preprocess_dfc2023.py`, you can use the original prediction script:
 
-```
-python predict.py -i path/to/processed_dataset/test/x/*.npy -o predictions -w weights/best_run.ckpt
+```bash
+python predict.py -i data/test/x/*.npy -o predictions -w weights/best_run.ckpt
 ```
 
 ### Option 2: Using the DFC2023-specific prediction script
 
 Alternatively, use the `predict_dfc2023.py` script that handles the dataset format on-the-fly:
 
-```
-python predict_dfc2023.py --dataset_path /path/to/DFC2023Amini --output_dir predictions --weights weights/dfc2023/best_run.ckpt
+```bash
+python predict_dfc2023.py --dataset_path /home/asfand/Ahmad/datasets/DFC2023Amini --output_dir predictions --weights weights/dfc2023/best_run.ckpt
 ```
 
 #### Options for predict_dfc2023.py
@@ -127,9 +129,20 @@ python predict_dfc2023.py --dataset_path /path/to/DFC2023Amini --output_dir pred
 
 ## Notes
 
-- The original Im2Height model architecture expects single-channel input and is preserved unchanged
-- For RGB images, only the first channel is used (not averaged to grayscale, which would lose information)
+- The Im2Height model architecture has been updated to support both single-channel and multi-channel inputs
+- For RGB images, all three channels are now preserved (unlike the original implementation that only used one channel)
+- TIF/TIFF file formats commonly used in remote sensing are now supported
 - The `.npy` format is used for efficient data loading and is the native format expected by the original implementation
 - You can either preprocess the dataset once using `preprocess_dfc2023.py` or use the on-the-fly conversion in the DFC2023-specific scripts
 - The semantic segmentation data (`sem` directory) is not used as this implementation is focused on height prediction only
 - Results are saved as numpy (.npy) files in the specified output directory
+
+## One-Step Preprocessing and Training
+
+For convenience, you can use the `preprocess_and_train.py` script to run both preprocessing and training in one step:
+
+```bash
+python preprocess_and_train.py --dataset_path /home/asfand/Ahmad/datasets/DFC2023Amini
+```
+
+This script will first convert the DFC2023Amini dataset to NPY format in the project's `data/` directory, then train the model using that data.

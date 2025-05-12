@@ -24,14 +24,18 @@ def run():
 	
 	train_loader = torch.utils.data.DataLoader(train_dataset, shuffle=True, **load_config)
 	test_loader = torch.utils.data.DataLoader(test_dataset, **load_config)
-
+	
 	# For backward compatibility:
 	# Original implementation used single-channel inputs, so we'll check
 	# if we need to update for multi-channel support
-	sample_input, _ = train_dataset[0]
-	in_channels = sample_input.shape[0]  # Channel dimension is first in PyTorch tensors
-	
-	print(f"Detected input with {in_channels} channel(s)")
+	try:
+		sample_input, _ = train_dataset[0]
+		in_channels = sample_input.shape[0]  # Channel dimension is first in PyTorch tensors
+		print(f"Detected input with {in_channels} channel(s)")
+	except (IndexError, FileNotFoundError) as e:
+		print(f"Warning: Could not determine input channels from dataset: {e}")
+		print("Defaulting to 1 channel")
+		in_channels = 1
 	
 	# training
 	model = Im2Height(in_channels=in_channels, out_channels=1)
