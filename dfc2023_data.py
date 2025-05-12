@@ -6,9 +6,12 @@ import os
 import numpy as np
 import torch
 import torch.utils.data
-from PIL import Image
+from PIL import Image, ImageFile
 from albumentations import HorizontalFlip, VerticalFlip, Rotate, RandomRotate90
 from augmenter import Augmenter
+
+# Ensure PIL can handle truncated images
+ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 class DFC2023Dataset(torch.utils.data.Dataset):
     '''
@@ -58,6 +61,16 @@ class DFC2023Dataset(torch.utils.data.Dataset):
             RandomRotate90(p=.3)
         ]
         self.augmenter = Augmenter(list_of_transforms=transforms, p=.9 if split == 'train' else 0)
+        
+        # Create directories for NPY data (according to README.md structure)
+        self.data_dir = os.path.join(os.path.dirname(dataset_root), "data")
+        self.input_npy_dir = os.path.join(self.data_dir, split, "x")
+        self.target_npy_dir = os.path.join(self.data_dir, split, "y")
+        os.makedirs(self.input_npy_dir, exist_ok=True)
+        os.makedirs(self.target_npy_dir, exist_ok=True)
+        
+        # Flag to avoid unnecessary conversions if files already exist
+        self.convert_files = True
 
     def __len__(self):
         return len(self.input_files)
@@ -65,13 +78,27 @@ class DFC2023Dataset(torch.utils.data.Dataset):
     def __getitem__(self, idx: int) -> tuple:
         # Load input image
         input_path = os.path.join(self.input_dir, self.input_files[idx])
+        file_basename = os.path.splitext(os.path.basename(input_path))[0]
         
-        # Handle different input types - RGB images or numpy files
-        if input_path.endswith('.jpg') or input_path.endswith('.png'):
+        # Path for saving the converted npy file
+        input_npy_path = os.path.join(self.input_npy_dir, f"{file_basename}.npy")
+        
+        # Check if converted file already exists to avoid redundant conversion
+        if os.path.exists(input_npy_path):
+            img = np.load(input_npy_path)
+            if len(img.shape) == 2:  # If it's a 2D array, add channel dimension
+                img = np.expand_dims(img, axis=2)
+        # Handle different input types - images or numpy files
+        elif input_path.endswith('.jpg') or input_path.endswith('.png') or input_path.endswith('.tif') or input_path.endswith('.tiff'):
+            # Load image using PIL (handles jpg, png, tif)
             img = np.array(Image.open(input_path))
-            # Convert RGB to single channel (grayscale) if needed by model
-            if len(img.shape) == 3 and img.shape[2] == 3:
-                img = np.mean(img, axis=2, keepdims=True)  # Simple conversion to grayscale
+            
+            # Ensure proper channel dimension
+            if len(img.shape) == 2:  # If grayscale
+                img = np.expand_dims(img, axis=2)
+                
+            # Save the numpy array with all channels preserved
+            np.save(input_npy_path, img)
         else:  # Assume it's a numpy file
             img = np.load(input_path)
             if len(img.shape) == 2:  # If it's a 2D array, add channel dimension
@@ -79,10 +106,19 @@ class DFC2023Dataset(torch.utils.data.Dataset):
                 
         # Load target/DSM data
         target_path = os.path.join(self.target_dir, self.target_files[idx])
-        if target_path.endswith('.jpg') or target_path.endswith('.png'):
+        target_npy_path = os.path.join(self.target_npy_dir, f"{file_basename}.npy")
+        
+        # Check if converted target file already exists
+        if os.path.exists(target_npy_path):
+            label = np.load(target_npy_path)
+            if len(label.shape) == 2:  # If it's a 2D array, add channel dimension
+                label = np.expand_dims(label, axis=2)
+        elif target_path.endswith('.jpg') or target_path.endswith('.png') or target_path.endswith('.tif') or target_path.endswith('.tiff'):
             label = np.array(Image.open(target_path))
             if len(label.shape) == 2:  # If it's a 2D array, add channel dimension
                 label = np.expand_dims(label, axis=2)
+            # Save the target as npy
+            np.save(target_npy_path, label)
         else:  # Assume it's a numpy file
             label = np.load(target_path)
             if len(label.shape) == 2:  # If it's a 2D array, add channel dimension
@@ -130,19 +166,38 @@ class DFC2023PredictionDataset(torch.utils.data.Dataset):
         self.input_files = sorted([os.path.join(self.input_dir, f) 
                                  for f in os.listdir(self.input_dir) 
                                  if os.path.isfile(os.path.join(self.input_dir, f))])
+        
+        # Set up the directory for NPY files matching the expected structure in README.md
+        self.data_dir = os.path.join(os.path.dirname(dataset_root), "data")
+        self.input_npy_dir = os.path.join(self.data_dir, split, "x")
+        os.makedirs(self.input_npy_dir, exist_ok=True)
 
     def __len__(self):
         return len(self.input_files)
 
     def __getitem__(self, idx: int) -> tuple:
         file_path = self.input_files[idx]
+        file_basename = os.path.splitext(os.path.basename(file_path))[0]
         
-        # Load the input image
-        if file_path.endswith('.jpg') or file_path.endswith('.png'):
+        # Path for saving the converted npy file
+        npy_path = os.path.join(self.input_npy_dir, f"{file_basename}.npy")
+        
+        # Check if converted file already exists
+        if os.path.exists(npy_path):
+            img = np.load(npy_path)
+            if len(img.shape) == 2:  # If it's a 2D array, add channel dimension
+                img = np.expand_dims(img, axis=2)
+        # Load the input image if conversion needed
+        elif file_path.endswith('.jpg') or file_path.endswith('.png') or file_path.endswith('.tif') or file_path.endswith('.tiff'):
+            # Load image using PIL (handles jpg, png, tif)
             img = np.array(Image.open(file_path))
-            # Convert RGB to single channel if needed by model
-            if len(img.shape) == 3 and img.shape[2] == 3:
-                img = np.mean(img, axis=2, keepdims=True)
+            
+            # Ensure proper channel dimension
+            if len(img.shape) == 2:
+                img = np.expand_dims(img, axis=2)
+                
+            # Save the numpy array with all channels preserved
+            np.save(npy_path, img)
         else:  # Assume it's a numpy file
             img = np.load(file_path)
             if len(img.shape) == 2:  # If it's a 2D array, add channel dimension

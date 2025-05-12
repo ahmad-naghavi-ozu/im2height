@@ -34,20 +34,31 @@ def run(dataset_path, output_dir="weights/dfc2023", input_type="rgb", target_typ
     # Create output directory if it doesn't exist
     os.makedirs(output_dir, exist_ok=True)
     
+    # Initialize datasets
+    train_dataset = DFC2023Dataset(dataset_path, 'train', input_type, target_type)
+    valid_dataset = DFC2023Dataset(dataset_path, 'valid', input_type, target_type)
+    
     # Initialize data loaders
     train_loader = torch.utils.data.DataLoader(
-        DFC2023Dataset(dataset_path, 'train', input_type, target_type), 
+        train_dataset, 
         shuffle=True, 
         **load_config
     )
     
     valid_loader = torch.utils.data.DataLoader(
-        DFC2023Dataset(dataset_path, 'valid', input_type, target_type), 
+        valid_dataset, 
         **load_config
     )
+    
+    # Check input sample to determine number of input channels
+    sample_input, _ = train_dataset[0]
+    in_channels = sample_input.shape[0]  # Channel dimension is first in PyTorch tensors
+    out_channels = 1  # Output is always height map with one channel
+    
+    print(f"Detected input with {in_channels} channel(s)")
 
-    # Initialize model
-    model = Im2Height()
+    # Initialize model with detected number of channels
+    model = Im2Height(in_channels=in_channels, out_channels=out_channels)
 
     # Set up trainer with callbacks for early stopping and model checkpointing
     trainer = Trainer(

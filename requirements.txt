@@ -2,3 +2,7 @@ torch
 torchvision
 pytorch-lightning
 albumentations
+numpy
+pillow
+tqdm
+scipy

@@ -19,6 +19,16 @@ ENV/
 # IDE specific files
 .idea/
 .vscode/
+
+# Ignore data directory with converted NPY files
+/data/
+
+# Ignore weights directory with trained models
+/weights/
+
+# OS specific files
+.DS_Store
+Thumbs.db
 *.swp
 *.swo
 

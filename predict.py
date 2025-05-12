@@ -16,12 +16,43 @@ load_config = {
 
 def run(input, output, weights):
 
-	# load weights
-	model = Im2Height.load_from_checkpoint(weights)
-	device = torch.device("cuda")
+	# Initialize dataset to check input shape
+	prediction_dataset = NpyPredictionDataset(input)
+	
+	# Check if we have any samples to determine input channels
+	if len(prediction_dataset) > 0:
+		_, sample_tensor = prediction_dataset[0]
+		in_channels = sample_tensor.shape[0]
+	else:
+		in_channels = 1  # Default to 1 channel if no samples
+	
+	# load weights and manually set in_channels if needed
+	try:
+		model = Im2Height.load_from_checkpoint(weights)
+		# Check if the model's input channels match the data
+		if model.in_channels != in_channels:
+			print(f"Warning: Model was trained with {model.in_channels} channels, but input has {in_channels} channels.")
+			print("Creating a new model with the correct number of input channels.")
+			model = Im2Height(in_channels=in_channels, out_channels=1)
+			# Load weights manually, skipping the first conv layer
+			checkpoint = torch.load(weights)
+			model_dict = model.state_dict()
+			# Filter out the first convolution layer from the loaded weights
+			filtered_dict = {k: v for k, v in checkpoint['state_dict'].items() if 'conv1.conv.weight' not in k and 'conv1.conv.bias' not in k}
+			model_dict.update(filtered_dict)
+			model.load_state_dict(model_dict, strict=False)
+	except Exception as e:
+		print(f"Error loading model: {e}")
+		print(f"Creating a new model with {in_channels} input channels.")
+		model = Im2Height(in_channels=in_channels, out_channels=1)
+	
+	device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 	model.to(device)
+	
+	# Set model to evaluation mode
+	model.eval()
 
-	data_loader = torch.utils.data.DataLoader(NpyPredictionDataset(input), **load_config)
+	data_loader = torch.utils.data.DataLoader(prediction_dataset, **load_config)
 
 	# predict and store
 	for filenames, tensors in data_loader:

@@ -74,14 +74,21 @@ class Block(LightningModule):
 class Im2Height(LightningModule):
 	""" Im2Height Fully Residual Convolutional-Deconvolutional Network
 		implementation based on https://arxiv.org/abs/1802.10249
+		
+		Modified to support dynamic input channels (1 or 3) for both grayscale and RGB inputs
+		while maintaining backward compatibility with original implementation
 	"""
 
-	def __init__(self):
+	def __init__(self, in_channels=1, out_channels=1):
 
 		super(Im2Height, self).__init__()
+		
+		# Save number of input channels
+		self.in_channels = in_channels
+		self.out_channels = out_channels
 
 		# Convolutions
-		self.conv1 = Block(nn.Conv2d, 1, 64)
+		self.conv1 = Block(nn.Conv2d, in_channels, 64)
 		self.conv2 = Block(nn.Conv2d, 64, 128)
 		self.conv3 = Block(nn.Conv2d, 128, 256)
 		self.conv4 = Block(nn.Conv2d, 256, 512)
@@ -90,7 +97,7 @@ class Im2Height(LightningModule):
 		self.deconv1 = Block(nn.ConvTranspose2d, 512, 256)
 		self.deconv2 = Block(nn.ConvTranspose2d, 256, 128)
 		self.deconv3 = Block(nn.ConvTranspose2d, 128, 64)
-		self.deconv4 = Block(nn.ConvTranspose2d, 128, 1) # note this is residual merge
+		self.deconv4 = Block(nn.ConvTranspose2d, 128, out_channels) # note this is residual merge
 
 		self.pool = Pool(2, 2, return_indices=True)
 		self.unpool = Unpool(2, 2)

@@ -19,11 +19,22 @@ load_config = {
 def run():
 
 	#torch.multiprocessing.freeze_support()
-	train_loader = torch.utils.data.DataLoader(NpyDataset('data/train/x', 'data/train/y'), shuffle=True, **load_config)
-	test_loader = torch.utils.data.DataLoader(NpyDataset('data/test/x', 'data/test/y'), **load_config)
+	train_dataset = NpyDataset('data/train/x', 'data/train/y')
+	test_dataset = NpyDataset('data/test/x', 'data/test/y')
+	
+	train_loader = torch.utils.data.DataLoader(train_dataset, shuffle=True, **load_config)
+	test_loader = torch.utils.data.DataLoader(test_dataset, **load_config)
 
+	# For backward compatibility:
+	# Original implementation used single-channel inputs, so we'll check
+	# if we need to update for multi-channel support
+	sample_input, _ = train_dataset[0]
+	in_channels = sample_input.shape[0]  # Channel dimension is first in PyTorch tensors
+	
+	print(f"Detected input with {in_channels} channel(s)")
+	
 	# training
-	model = Im2Height()
+	model = Im2Height(in_channels=in_channels, out_channels=1)
 
 	trainer = Trainer(
 		gpus=torch.cuda.device_count(),
