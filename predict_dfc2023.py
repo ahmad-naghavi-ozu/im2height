@@ -29,15 +29,16 @@ def run(dataset_path, output_dir, weights, split="test", input_type="rgb"):
     """
     # Create output directory if it doesn't exist
     os.makedirs(output_dir, exist_ok=True)
+    print(f"Saving predictions to: {output_dir}")
     
     # Initialize dataset
     prediction_dataset = DFC2023PredictionDataset(dataset_path, split, input_type)
     
-    # Set input channels based on input_type - don't try to detect from data
-    # RGB images use 3 channels, SAR images use 1 channel
+    # Initially set input channels based on input_type, but this may be overridden
+    # by what we detect in the checkpoint to ensure compatibility
     in_channels = 3 if input_type == 'rgb' else 1
     
-    print(f"Using {in_channels} input channels for prediction based on input_type '{input_type}'.")
+    print(f"Initial channels setting: {in_channels} channels based on input_type '{input_type}'.")
     
     # Load the trained model
     try:
@@ -61,37 +62,99 @@ def run(dataset_path, output_dir, weights, split="test", input_type="rgb"):
             else:
                 raise FileNotFoundError(f"Weights directory {weights_dir} doesn't exist")
         
-        model = Im2Height.load_from_checkpoint(weights)
-        print(f"Successfully loaded model from {weights}")
+        # First try loading the checkpoint to examine its configuration
+        checkpoint = torch.load(weights, map_location='cpu')
+        checkpoint_state_dict = checkpoint.get('state_dict', checkpoint)
         
-        # Check if the model's input channels match the data
-        if hasattr(model, 'in_channels') and model.in_channels != in_channels:
-            print(f"Warning: Model was trained with {model.in_channels} channels, but input has {in_channels} channels.")
-            print("Creating a new model with the correct number of input channels.")
-            model = Im2Height(in_channels=in_channels, out_channels=1)
-            # Load weights manually, skipping the first conv layer
-            checkpoint = torch.load(weights)
-            model_dict = model.state_dict()
+        # Try to determine model's input channels from the checkpoint
+        # Look at the first convolutional layer's weight shape to determine channels
+        ckpt_in_channels = None
+        if 'conv1.conv1.weight' in checkpoint_state_dict:
+            ckpt_in_channels = checkpoint_state_dict['conv1.conv1.weight'].shape[1]
+            print(f"Detected {ckpt_in_channels} input channels in checkpoint")
             
-            # Get the state dict from the checkpoint
+            # Always use the checkpoint's channel count to ensure compatibility
+            # This ensures we load the model correctly regardless of input_type
+            in_channels = ckpt_in_channels
+            
+            # But warn if there's a mismatch with requested input_type
+            if (ckpt_in_channels == 3 and input_type == 'sar') or (ckpt_in_channels == 1 and input_type == 'rgb'):
+                print(f"WARNING: Checkpoint was trained with {ckpt_in_channels} channels but input_type '{input_type}' expects different channels.")
+                print(f"Will use checkpoint's channel configuration ({ckpt_in_channels}) for prediction.")
+        
+        # Now load the model with the appropriate number of channels
+        try:
+            # First try direct loading (works if channels match)
+            model = Im2Height.load_from_checkpoint(weights)
+            print(f"Successfully loaded model from {weights}")
+            
+            # Double-check channel configuration and always update our in_channels to match the model
+            if hasattr(model, 'in_channels'):
+                if model.in_channels != in_channels:
+                    print(f"Warning: Loaded model has {model.in_channels} channels but input type '{input_type}' expects {in_channels} channels.")
+                    print(f"Will process using the model's configuration ({model.in_channels} channels).")
+                # Override in_channels to match the model - this is critical for proper prediction
+                in_channels = model.in_channels
+        except Exception as e:
+            # Instead of failing, let's create a model with the correct number of input channels
+            print(f"Standard loading failed: {e}")
+            print(f"Creating model with {ckpt_in_channels} input channels to match checkpoint...")
+            
+            # Create a new model with the input channels from the checkpoint
+            model = Im2Height(in_channels=ckpt_in_channels, out_channels=1)
+            
+            # Then load the checkpoint state dict
             checkpoint_state_dict = checkpoint.get('state_dict', checkpoint)
             
-            # Filter out the incompatible layers from the loaded weights
-            filtered_dict = {k: v for k, v in checkpoint_state_dict.items() 
-                           if k in model_dict and model_dict[k].shape == v.shape}
+            # Load the state dict, ignoring mismatched keys
+            missing, unexpected = model.load_state_dict(checkpoint_state_dict, strict=False)
             
-            print(f"Compatible parameters: {len(filtered_dict)}/{len(model_dict)}")
-            model_dict.update(filtered_dict)
-            model.load_state_dict(model_dict, strict=False)
-            
-            # Verify the model architecture and input shape
-            print(f"Model input channels: {model.in_channels}")
-            print(f"Model first convolutional layer weights shape: {model.conv1.conv1.weight.shape}")
-            print("Created new model and transferred compatible weights")
+            if missing:
+                print(f"Missing keys: {len(missing)} keys")
+            if unexpected:
+                print(f"Unexpected keys: {len(unexpected)} keys")
+                
+            print(f"Successfully created model with {ckpt_in_channels} input channels and loaded weights.")
+            # Update in_channels to match the model
+            in_channels = ckpt_in_channels
     except Exception as e:
-        print(f"Error loading model: {e}")
-        print(f"Creating a new model with {in_channels} input channels.")
-        model = Im2Height(in_channels=in_channels, out_channels=1)
+        # If we detected checkpoint channels earlier but failed to load the model properly,
+        # try one more time with a custom approach
+        if ckpt_in_channels is not None:
+            try:
+                print(f"Trying alternative loading method with {ckpt_in_channels} channels...")
+                model = Im2Height(in_channels=ckpt_in_channels, out_channels=1)
+                checkpoint_state_dict = checkpoint.get('state_dict', checkpoint)
+                missing, unexpected = model.load_state_dict(checkpoint_state_dict, strict=False)
+                print(f"Successfully loaded model using {ckpt_in_channels} input channels.")
+                print(f"Missing keys: {len(missing)}, Unexpected keys: {len(unexpected)}")
+                in_channels = ckpt_in_channels
+            except Exception as alt_e:
+                print(f"ERROR: Alternative loading also failed: {alt_e}")
+                print("Cannot proceed with prediction without a trained model.")
+                print("Please check the checkpoint path and ensure it contains a valid trained model.")
+                print(f"Checkpoint path: {weights}")
+                print("\nPossible solutions:")
+                print("1. Check that the checkpoint file exists and is accessible")
+                print("2. Verify that the checkpoint was created with a compatible model architecture")
+                print("3. Make sure the input_type parameter (--input_type) matches how the model was trained")
+                print("4. If needed, train a new model before running predictions")
+                
+                import sys
+                sys.exit(1)  # Exit with error code
+        else:
+            print(f"ERROR: Failed to load model from checkpoint: {e}")
+            print("Cannot proceed with prediction without a trained model.")
+            print("Please check the checkpoint path and ensure it contains a valid trained model.")
+            print(f"Checkpoint path: {weights}")
+            print("\nPossible solutions:")
+            print("1. Check that the checkpoint file exists and is accessible") 
+            print("2. Verify that the checkpoint was created with a compatible model architecture")
+            print("3. Make sure the input_type parameter (--input_type) matches how the model was trained")
+            print("4. If needed, train a new model before running predictions")
+            
+            import sys
+            sys.exit(1)  # Exit with error code
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
@@ -148,15 +211,28 @@ def run(dataset_path, output_dir, weights, split="test", input_type="rgb"):
             with torch.no_grad():
                 tensors = tensors.to(device)
                 
-                # For the first few batches, verify tensor shape and adjust if needed
-                if i < 2 and (tensors.shape[1] != in_channels):
-                    print(f"WARNING: Input tensor has wrong channel dimension: {tensors.shape}")
-                    # Create a new tensor with the right dimensions
-                    if in_channels == 3:  # RGB
-                        tensors = tensors[:, :3]  # Keep only first 3 channels
-                    else:  # SAR
-                        tensors = tensors[:, :1]  # Keep only first channel
-                    print(f"Corrected shape: {tensors.shape}")
+                # For all batches, verify tensor shape matches model's expected input channels
+                if tensors.shape[1] != model.in_channels:
+                    print(f"Input tensor channels ({tensors.shape[1]}) don't match model's expected channels ({model.in_channels})")
+                    
+                    # Create a new tensor with the right dimensions to match the model
+                    if model.in_channels == 3:  # Model expects RGB
+                        if tensors.shape[1] >= 3:
+                            tensors = tensors[:, :3]  # Keep only first 3 channels
+                        else:
+                            # Not enough channels, duplicate the existing channel(s)
+                            tensors = tensors[:, :1].repeat(1, 3, 1, 1)
+                            print(f"Duplicated single channel to create RGB input")
+                    else:  # Model expects single channel
+                        if tensors.shape[1] > 1:
+                            # Convert multiple channels to single channel using mean
+                            tensors = tensors.mean(dim=1, keepdim=True)
+                            print(f"Converted multiple channels to single channel using mean")
+                        else:
+                            tensors = tensors[:, :1]  # Keep only first channel
+                    
+                    if i < 2:  # Only print for first few batches
+                        print(f"Adjusted tensor shape to: {tensors.shape}")
                 
                 predictions = model(tensors)
                 print(f"Output predictions shape: {predictions.shape}")

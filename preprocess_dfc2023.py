@@ -6,17 +6,20 @@ from tqdm import tqdm
 
 def preprocess_dataset(dataset_path, output_path=None, input_type="rgb", target_type="dsm"):
     """
-    Preprocess the DFC2023Amini dataset by converting images to .npy format
+    Preprocess the DFC2023 dataset by converting images to .npy format
     
     Args:
-        dataset_path: Path to the DFC2023Amini dataset
-        output_path: Path to save the processed .npy files. If None, saves to 'data' in the current directory.
+        dataset_path: Path to the DFC2023 dataset (e.g., DFC2023Amini, DFC2023S, DFC2023A)
+        output_path: Path to save the processed .npy files. If None, saves to 'data/<dataset_name>' in the current directory.
         input_type: Input data type ('rgb' or 'sar')
         target_type: Target data type (usually 'dsm')
     """
-    # If output_path is not specified, save to project root data directory
+    # Extract dataset name from the path (last folder name)
+    dataset_name = os.path.basename(os.path.normpath(dataset_path))
+    
+    # If output_path is not specified, save to project root data directory with dataset name subfolder
     if output_path is None:
-        output_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+        output_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", dataset_name)
         print(f"No output path specified. Using default path: {output_path}")
     splits = ['train', 'valid', 'test']
     

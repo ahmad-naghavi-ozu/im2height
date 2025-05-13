@@ -62,10 +62,14 @@ class DFC2023Dataset(torch.utils.data.Dataset):
         ]
         self.augmenter = Augmenter(list_of_transforms=transforms, p=.9 if split == 'train' else 0)
         
+        # Extract dataset name from the path (last folder name)
+        dataset_name = os.path.basename(os.path.normpath(dataset_root))
+        
         # Create directories for NPY data (according to README.md structure)
         # Use the IM2HEIGHT root directory for the NPY files, not relative to dataset_root
+        # Store data in dataset-specific subfolder
         script_dir = os.path.dirname(os.path.abspath(__file__))
-        self.data_dir = os.path.join(script_dir, "data")
+        self.data_dir = os.path.join(script_dir, "data", dataset_name)
         self.input_npy_dir = os.path.join(self.data_dir, split, "x")
         self.target_npy_dir = os.path.join(self.data_dir, split, "y")
         os.makedirs(self.input_npy_dir, exist_ok=True)
@@ -181,10 +185,13 @@ class DFC2023PredictionDataset(torch.utils.data.Dataset):
                                  for f in os.listdir(self.input_dir) 
                                  if os.path.isfile(os.path.join(self.input_dir, f))])
         
+        # Extract dataset name from the path (last folder name)
+        dataset_name = os.path.basename(os.path.normpath(dataset_root))
+        
         # Set up the directory for NPY files matching the expected structure in README.md
-        # Use the IM2HEIGHT root directory for the NPY files
+        # Use the IM2HEIGHT root directory for the NPY files, in dataset-specific subfolder
         script_dir = os.path.dirname(os.path.abspath(__file__))
-        self.data_dir = os.path.join(script_dir, "data")
+        self.data_dir = os.path.join(script_dir, "data", dataset_name)
         self.input_npy_dir = os.path.join(self.data_dir, split, "x")
         os.makedirs(self.input_npy_dir, exist_ok=True)
         # Comment out the print statement to keep the terminal clean

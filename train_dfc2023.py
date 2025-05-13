@@ -145,17 +145,23 @@ def run(dataset_path, output_dir="weights/dfc2023", input_type="rgb", target_typ
     # Handle different GPU specifications correctly
     if gpu_count is not None:
         # If user passes in "0", we interpret it as "use GPU 0", not "use 0 GPUs"
-        if isinstance(gpu_count, str) and gpu_count.strip() == "0":
+        if gpu_count.strip() == "0":
             trainer_devices = [0]  # Use GPU 0
-        elif isinstance(gpu_count, int) and gpu_count == 0:
-            trainer_devices = [0]  # Use GPU 0
-        else:
-            # If it's a comma-separated list like "0,1", convert to a list of integers
-            if isinstance(gpu_count, str) and ',' in gpu_count:
-                trainer_devices = [int(g.strip()) for g in gpu_count.split(',')]
+        # If it's a comma-separated list like "0,1", convert to a list of integers
+        elif ',' in gpu_count:
+            trainer_devices = [int(g.strip()) for g in gpu_count.split(',')]
+        # If it's a numeric string, interpret as number of GPUs
+        elif gpu_count.strip().isdigit():
+            num_gpus = int(gpu_count.strip())
+            if num_gpus == 0:
+                trainer_devices = [0]  # Use GPU 0
             else:
-                # Otherwise use the value as is
-                trainer_devices = gpu_count
+                # Use the specified number of GPUs
+                trainer_devices = num_gpus
+        else:
+            # Fallback: just use all available GPUs
+            print(f"Warning: Invalid GPU specification '{gpu_count}'. Using all available GPUs.")
+            trainer_devices = torch.cuda.device_count()
     else:
         trainer_devices = torch.cuda.device_count()
     
@@ -189,8 +195,8 @@ if __name__ == '__main__':
                         help="Maximum number of training epochs")
     parser.add_argument("-p", "--patience", type=int, default=200,
                         help="Early stopping patience")
-    parser.add_argument("-g", "--gpu_count", type=int, default=None,
-                        help="Number of GPUs to use (default: auto-detect)")
+    parser.add_argument("-g", "--gpu_count", type=str, default=None,
+                        help="GPUs to use (comma-separated indices or integer count, e.g., '0,1' or 2)")
                         
     args = parser.parse_args()
     run(**vars(args))

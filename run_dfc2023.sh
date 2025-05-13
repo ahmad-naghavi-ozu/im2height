@@ -13,6 +13,9 @@ PATIENCE="200"  # Default early stopping patience
 # For 256x256 images (original paper), it will use batch_size=6, workers=12
 # For 512x512 images (DFC2023), it will automatically adjust to lower values
 # to optimize memory usage and performance.
+#
+# Data for each dataset (e.g., DFC2023Amini, DFC2023S, DFC2023A) will be stored in 
+# separate subdirectories within the data/ folder to keep different dataset versions organized.
 
 # Help function
 function show_help {
@@ -21,7 +24,7 @@ function show_help {
     echo "Options:"
     echo "  -h, --help                Show this help message"
     echo "  -a, --action ACTION       Action to perform: preprocess, train, predict, or all (default: train)"
-    echo "  -d, --dataset PATH        Path to DFC2023Amini dataset (default: $DATASET_PATH)"
+    echo "  -d, --dataset PATH        Path to dataset (e.g., DFC2023Amini, DFC2023S, DFC2023A) (default: $DATASET_PATH)"
     echo "  -i, --input TYPE          Input data type: rgb or sar (default: $INPUT_TYPE)"
     echo "  -t, --target TYPE         Target data type (default: $TARGET_TYPE)"
     echo "  -w, --weights PATH        Path to model weights (for prediction only)"
@@ -85,9 +88,12 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+# Extract dataset name from the path (last folder name)
+DATASET_NAME=$(basename "$DATASET_PATH")
+
 # Create necessary directories
-mkdir -p data
-mkdir -p weights/dfc2023
+mkdir -p "data/${DATASET_NAME}"
+mkdir -p "weights/${DATASET_NAME}"
 
 # Perform the requested action
 case $ACTION in
@@ -96,11 +102,11 @@ case $ACTION in
         python preprocess_dfc2023.py --dataset_path "$DATASET_PATH" --input_type "$INPUT_TYPE" --target_type "$TARGET_TYPE"
         ;;
     train)
-        echo "=== Training Im2Height model on DFC2023Amini dataset ==="
+        echo "=== Training Im2Height model on ${DATASET_NAME} dataset ==="
         if [ -z "$GPUS" ]; then
-            python train_dfc2023.py --dataset_path "$DATASET_PATH" --input_type "$INPUT_TYPE" --target_type "$TARGET_TYPE" --patience "$PATIENCE"
+            python train_dfc2023.py --dataset_path "$DATASET_PATH" --input_type "$INPUT_TYPE" --target_type "$TARGET_TYPE" --patience "$PATIENCE" --output_dir "weights/${DATASET_NAME}"
         else
-            python train_dfc2023.py --dataset_path "$DATASET_PATH" --input_type "$INPUT_TYPE" --target_type "$TARGET_TYPE" --gpu_count "$GPUS" --patience "$PATIENCE"
+            python train_dfc2023.py --dataset_path "$DATASET_PATH" --input_type "$INPUT_TYPE" --target_type "$TARGET_TYPE" --gpu_count "$GPUS" --patience "$PATIENCE" --output_dir "weights/${DATASET_NAME}"
         fi
         ;;
     predict)
@@ -110,10 +116,10 @@ case $ACTION in
             exit 1
         fi
         if [ -z "$OUTPUT_DIR" ]; then
-            OUTPUT_DIR="predictions"
+            OUTPUT_DIR="predictions/${DATASET_NAME}"
             echo "No output directory specified. Using default: $OUTPUT_DIR"
         fi
-        echo "=== Running predictions on DFC2023Amini dataset ==="
+        echo "=== Running predictions on ${DATASET_NAME} dataset ==="
         python predict_dfc2023.py --dataset_path "$DATASET_PATH" --output_dir "$OUTPUT_DIR" --weights "$WEIGHTS" --input_type "$INPUT_TYPE"
         ;;
     all)
@@ -129,22 +135,22 @@ case $ACTION in
         echo "Step 2: Training model..."
         export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True  # Avoid memory fragmentation
         if [ -z "$GPUS" ]; then
-            python train_dfc2023.py --dataset_path "$DATASET_PATH" --input_type "$INPUT_TYPE" --target_type "$TARGET_TYPE" --patience "$PATIENCE"
+            python train_dfc2023.py --dataset_path "$DATASET_PATH" --input_type "$INPUT_TYPE" --target_type "$TARGET_TYPE" --patience "$PATIENCE" --output_dir "weights/${DATASET_NAME}"
         else
-            python train_dfc2023.py --dataset_path "$DATASET_PATH" --input_type "$INPUT_TYPE" --target_type "$TARGET_TYPE" --gpu_count "$GPUS" --patience "$PATIENCE"
+            python train_dfc2023.py --dataset_path "$DATASET_PATH" --input_type "$INPUT_TYPE" --target_type "$TARGET_TYPE" --gpu_count "$GPUS" --patience "$PATIENCE" --output_dir "weights/${DATASET_NAME}"
         fi
         
         # Clear CUDA cache again before prediction
         python -c "import torch; torch.cuda.empty_cache()" 2>/dev/null || true
         
         # Find the best model weights
-        BEST_WEIGHTS=$(find weights/dfc2023 -name "*best*.ckpt" | sort | tail -n 1)
+        BEST_WEIGHTS=$(find "weights/${DATASET_NAME}" -name "*best*.ckpt" | sort | tail -n 1)
         if [ -z "$BEST_WEIGHTS" ]; then
             echo "No model weights found. Prediction step skipped."
         else
             # Predict
             echo "Step 3: Running predictions with model $BEST_WEIGHTS..."
-            python predict_dfc2023.py --dataset_path "$DATASET_PATH" --output_dir "predictions" --weights "$BEST_WEIGHTS" --input_type "$INPUT_TYPE"
+            python predict_dfc2023.py --dataset_path "$DATASET_PATH" --output_dir "predictions/${DATASET_NAME}" --weights "$BEST_WEIGHTS" --input_type "$INPUT_TYPE"
         fi
         ;;
     *)
