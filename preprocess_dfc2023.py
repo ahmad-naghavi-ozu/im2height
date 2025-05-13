@@ -9,7 +9,7 @@ def preprocess_dataset(dataset_path, output_path=None, input_type="rgb", target_
     Preprocess the DFC2023 dataset by converting images to .npy format
     
     Args:
-        dataset_path: Path to the DFC2023 dataset (e.g., DFC2023Amini, DFC2023S, DFC2023A)
+        dataset_path: Path to the DFC2023 dataset (e.g., DFC2023S, DFC2023A, DFC2023Asmall, DFC2023Amini)
         output_path: Path to save the processed .npy files. If None, saves to 'data/<dataset_name>' in the current directory.
         input_type: Input data type ('rgb' or 'sar')
         target_type: Target data type (usually 'dsm')
@@ -92,7 +92,7 @@ def preprocess_dataset(dataset_path, output_path=None, input_type="rgb", target_
         print(f"Finished processing {split} split")
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="Preprocess DFC2023Amini dataset for Im2Height model")
+    parser = argparse.ArgumentParser(description="Preprocess DFC2023 dataset variants for Im2Height model")
     parser.add_argument("-d", "--dataset_path", type=str, required=True,
                         help="Path to the DFC2023Amini dataset")
     parser.add_argument("-o", "--output_path", type=str, required=False, default=None,

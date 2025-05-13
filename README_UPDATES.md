@@ -46,9 +46,9 @@ The original implementation was designed to work with single-channel inputs. Thi
 3. Added safeguards in prediction scripts to handle model loading when input channels differ
 4. Maintained backward compatibility with original implementation and NPY datasets
 
-## Usage with DFC2023Amini Dataset
+## Usage with DFC2023 Dataset Variants
 
-The code now correctly handles the DFC2023Amini dataset structure and saves converted NPY files for future use. The directory structure will be:
+The code now correctly handles the DFC2023 dataset structure variants (DFC2023Amini, DFC2023S, DFC2023A, DFC2023Asmall) and saves converted NPY files for future use. The directory structure will be:
 
 ```
 data/

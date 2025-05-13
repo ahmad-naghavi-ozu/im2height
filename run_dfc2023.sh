@@ -14,7 +14,7 @@ PATIENCE="200"  # Default early stopping patience
 # For 512x512 images (DFC2023), it will automatically adjust to lower values
 # to optimize memory usage and performance.
 #
-# Data for each dataset (e.g., DFC2023Amini, DFC2023S, DFC2023A) will be stored in 
+# Data for each dataset (e.g., DFC2023S, DFC2023A, DFC2023Asmall, DFC2023Amini) will be stored in 
 # separate subdirectories within the data/ folder to keep different dataset versions organized.
 
 # Help function
@@ -24,7 +24,7 @@ function show_help {
     echo "Options:"
     echo "  -h, --help                Show this help message"
     echo "  -a, --action ACTION       Action to perform: preprocess, train, predict, or all (default: train)"
-    echo "  -d, --dataset PATH        Path to dataset (e.g., DFC2023Amini, DFC2023S, DFC2023A) (default: $DATASET_PATH)"
+    echo "  -d, --dataset PATH        Path to dataset (e.g., DFC2023S, DFC2023A, DFC2023Asmall, DFC2023Amini) (default: $DATASET_PATH)"
     echo "  -i, --input TYPE          Input data type: rgb or sar (default: $INPUT_TYPE)"
     echo "  -t, --target TYPE         Target data type (default: $TARGET_TYPE)"
     echo "  -w, --weights PATH        Path to model weights (for prediction only)"
@@ -98,7 +98,7 @@ mkdir -p "weights/${DATASET_NAME}"
 # Perform the requested action
 case $ACTION in
     preprocess)
-        echo "=== Preprocessing DFC2023Amini dataset ==="
+        echo "=== Preprocessing ${DATASET_NAME} dataset ==="
         python preprocess_dfc2023.py --dataset_path "$DATASET_PATH" --input_type "$INPUT_TYPE" --target_type "$TARGET_TYPE"
         ;;
     train)

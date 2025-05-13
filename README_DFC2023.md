@@ -1,13 +1,13 @@
-# Running Im2Height on DFC2023Amini Dataset
+# Running Im2Height on DFC2023 Dataset Variants
 
-This document provides instructions on how to run the Im2Height model on the DFC2023Amini dataset structure.
+This document provides instructions on how to run the Im2Height model on various DFC2023 dataset structures (DFC2023Amini, DFC2023S, DFC2023A, DFC2023Asmall).
 
 ## Dataset Structure
 
-The DFC2023Amini dataset has the following structure:
+All DFC2023 dataset variants (DFC2023Amini, DFC2023S, DFC2023A, DFC2023Asmall) follow the same structure:
 
 ```
-DFC2023Amini/
+DFC2023<VariantName>/
 ├── test/
 │   ├── dsm/  (Digital Surface Model data - elevation information)
 │   ├── rgb/  (RGB optical imagery)
@@ -36,6 +36,8 @@ The Im2Height model expects input data in .npy format. You can use the `preproce
 
 ```bash
 python preprocess_dfc2023.py --dataset_path /home/asfand/Ahmad/datasets/DFC2023Amini
+# Or use any other variant:
+# python preprocess_dfc2023.py --dataset_path /home/asfand/Ahmad/datasets/DFC2023Asmall
 ```
 
 This will automatically generate NPY files in the `data/` directory of your IM2HEIGHT project with the structure expected by the original implementation.
@@ -57,7 +59,7 @@ data/
 
 ### Preprocessing options
 
-- `--dataset_path`: Path to the DFC2023Amini dataset (required)
+- `--dataset_path`: Path to the DFC2023 dataset variant (e.g., DFC2023Amini, DFC2023S, DFC2023A, DFC2023Asmall) (required)
 - `--output_path`: Path to save the processed .npy files (optional, defaults to `data/` in project root)
 - `--input_type`: Input data type to use (`rgb` or `sar`, default: `rgb`)
 - `--target_type`: Target data type to use (default: `dsm`)
@@ -87,11 +89,13 @@ Alternatively, you can use the `train_dfc2023.py` script that handles the datase
 
 ```bash
 python train_dfc2023.py --dataset_path /home/asfand/Ahmad/datasets/DFC2023Amini --output_dir weights/dfc2023 --input_type rgb
+# Or use any other variant:
+# python train_dfc2023.py --dataset_path /home/asfand/Ahmad/datasets/DFC2023Asmall --output_dir weights/DFC2023Asmall --input_type rgb
 ```
 
 #### Options for train_dfc2023.py
 
-- `--dataset_path`: Path to the DFC2023Amini dataset (required)
+- `--dataset_path`: Path to the DFC2023 dataset variant (e.g., DFC2023Amini, DFC2023S, DFC2023A, DFC2023Asmall) (required)
 - `--output_dir`: Directory to save model weights (default: `weights/dfc2023`)
 - `--input_type`: Input data type to use (`rgb` or `sar`, default: `rgb`)
 - `--target_type`: Target data type to use (default: `dsm`)
@@ -117,11 +121,13 @@ Alternatively, use the `predict_dfc2023.py` script that handles the dataset form
 
 ```bash
 python predict_dfc2023.py --dataset_path /home/asfand/Ahmad/datasets/DFC2023Amini --output_dir predictions --weights weights/dfc2023/best_run.ckpt
+# Or use any other variant:
+# python predict_dfc2023.py --dataset_path /home/asfand/Ahmad/datasets/DFC2023Asmall --output_dir predictions/DFC2023Asmall --weights weights/DFC2023Asmall/best_run.ckpt
 ```
 
 #### Options for predict_dfc2023.py
 
-- `--dataset_path`: Path to the DFC2023Amini dataset (required)
+- `--dataset_path`: Path to the DFC2023 dataset variant (e.g., DFC2023Amini, DFC2023S, DFC2023A, DFC2023Asmall) (required)
 - `--output_dir`: Directory to save predictions (required)
 - `--weights`: Path to the trained model weights (required)
 - `--split`: Dataset split to run predictions on (`test`, `valid`, or `train`, default: `test`)
@@ -143,6 +149,8 @@ For convenience, you can use the `preprocess_and_train.py` script to run both pr
 
 ```bash
 python preprocess_and_train.py --dataset_path /home/asfand/Ahmad/datasets/DFC2023Amini
+# Or use any other variant:
+# python preprocess_and_train.py --dataset_path /home/asfand/Ahmad/datasets/DFC2023Asmall
 ```
 
-This script will first convert the DFC2023Amini dataset to NPY format in the project's `data/` directory, then train the model using that data.
+This script will first convert the DFC2023 dataset variant to NPY format in the project's `data/` directory, then train the model using that data.

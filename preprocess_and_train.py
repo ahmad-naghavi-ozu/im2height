@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # filepath: /home/asfand/Ahmad/IM2HEIGHT/preprocess_and_train.py
 """
-Script to preprocess and train Im2Height model on DFC2023Amini dataset in one step
+Script to preprocess and train Im2Height model on DFC2023 dataset variants in one step
 """
 
 import os
@@ -11,9 +11,9 @@ from preprocess_dfc2023 import preprocess_dataset
 from train_dfc2023 import run as train_run
 
 def main():
-    parser = argparse.ArgumentParser(description="Preprocess DFC2023Amini dataset and train Im2Height model")
+    parser = argparse.ArgumentParser(description="Preprocess DFC2023 dataset variants and train Im2Height model")
     parser.add_argument("-d", "--dataset_path", type=str, default="/home/asfand/Ahmad/datasets/DFC2023Amini",
-                      help="Path to the DFC2023Amini dataset (default: /home/asfand/Ahmad/datasets/DFC2023Amini)")
+                      help="Path to the DFC2023 dataset variant (e.g., DFC2023S, DFC2023A, DFC2023Asmall, DFC2023Amini)")
     parser.add_argument("-i", "--input_type", type=str, default="rgb", choices=["rgb", "sar"],
                       help="Input data type (default: rgb)")
     parser.add_argument("-t", "--target_type", type=str, default="dsm",

@@ -253,9 +253,9 @@ def run(dataset_path, output_dir, weights, split="test", input_type="rgb"):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="Run predictions on DFC2023Amini dataset using Im2Height model")
+    parser = argparse.ArgumentParser(description="Run predictions on DFC2023 dataset variants using Im2Height model")
     parser.add_argument("-d", "--dataset_path", type=str, required=True,
-                        help="Path to the DFC2023Amini dataset")
+                        help="Path to the DFC2023 dataset variant (e.g., DFC2023S, DFC2023A, DFC2023Asmall, DFC2023Amini)")
     parser.add_argument("-o", "--output_dir", type=str, required=True,
                         help="Directory to save predictions")
     parser.add_argument("-w", "--weights", type=str, required=True,

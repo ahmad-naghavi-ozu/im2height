@@ -15,10 +15,10 @@ ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 class DFC2023Dataset(torch.utils.data.Dataset):
     '''
-    A dataset class to handle the DFC2023Amini dataset structure
+    A dataset class to handle the DFC2023 dataset structure (DFC2023S, DFC2023A, DFC2023Asmall, DFC2023Amini)
     
     This dataset class assumes the following structure:
-    DFC2023Amini/
+    DFC2023<VariantName>/
     ├── train/
     │   ├── dsm/ (elevation data - used as target)
     │   ├── rgb/ (RGB optical imagery - used as input)
@@ -29,9 +29,9 @@ class DFC2023Dataset(torch.utils.data.Dataset):
     '''
     def __init__(self, dataset_root, split='train', input_type='rgb', target_type='dsm'):
         """
-        Instantiate dataset for DFC2023Amini dataset.
+        Instantiate dataset for DFC2023 dataset variants (DFC2023S, DFC2023A, DFC2023Asmall, DFC2023Amini).
 
-        :param dataset_root: (str) root directory of DFC2023Amini dataset
+        :param dataset_root: (str) root directory of DFC2023 dataset variant
         :param split: (str) one of 'train', 'valid', or 'test'
         :param input_type: (str) input modality, one of 'rgb' or 'sar'
         :param target_type: (str) target modality, typically 'dsm'
