@@ -7,6 +7,7 @@ INPUT_TYPE="rgb"
 TARGET_TYPE="dsm"
 ACTION="train"  # Default action: train
 GPUS=""        # Default: use all available GPUs
+PATIENCE="200"  # Default early stopping patience
 
 # Note: The script now uses dynamic configuration based on input image dimensions.
 # For 256x256 images (original paper), it will use batch_size=6, workers=12
@@ -26,12 +27,15 @@ function show_help {
     echo "  -w, --weights PATH        Path to model weights (for prediction only)"
     echo "  -o, --output DIR          Output directory (for prediction only)"
     echo "  -g, --gpus GPUs           Comma-separated list of GPU indices to use (e.g. '0,1' for first two GPUs)"
+    echo "  -p, --patience NUMBER     Early stopping patience value for training (default: $PATIENCE)"
     echo ""
     echo "Examples:"
     echo "  ./run_dfc2023.sh --action preprocess"
     echo "  ./run_dfc2023.sh --action train"
+    echo "  ./run_dfc2023.sh --action train --patience 20"
     echo "  ./run_dfc2023.sh --action predict --weights weights/dfc2023/best_run.ckpt --output predictions"
     echo "  ./run_dfc2023.sh --action all"
+    echo "  ./run_dfc2023.sh --action all --patience 20"
 }
 
 # Process command-line arguments
@@ -69,6 +73,10 @@ while [[ $# -gt 0 ]]; do
             GPUS="$2"
             shift 2
             ;;
+        -p|--patience)
+            PATIENCE="$2"
+            shift 2
+            ;;
         *)
             echo "Unknown option: $1"
             show_help
@@ -90,9 +98,9 @@ case $ACTION in
     train)
         echo "=== Training Im2Height model on DFC2023Amini dataset ==="
         if [ -z "$GPUS" ]; then
-            python train_dfc2023.py --dataset_path "$DATASET_PATH" --input_type "$INPUT_TYPE" --target_type "$TARGET_TYPE"
+            python train_dfc2023.py --dataset_path "$DATASET_PATH" --input_type "$INPUT_TYPE" --target_type "$TARGET_TYPE" --patience "$PATIENCE"
         else
-            python train_dfc2023.py --dataset_path "$DATASET_PATH" --input_type "$INPUT_TYPE" --target_type "$TARGET_TYPE" --gpu_count "$GPUS"
+            python train_dfc2023.py --dataset_path "$DATASET_PATH" --input_type "$INPUT_TYPE" --target_type "$TARGET_TYPE" --gpu_count "$GPUS" --patience "$PATIENCE"
         fi
         ;;
     predict)
@@ -121,9 +129,9 @@ case $ACTION in
         echo "Step 2: Training model..."
         export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True  # Avoid memory fragmentation
         if [ -z "$GPUS" ]; then
-            python train_dfc2023.py --dataset_path "$DATASET_PATH" --input_type "$INPUT_TYPE" --target_type "$TARGET_TYPE"
+            python train_dfc2023.py --dataset_path "$DATASET_PATH" --input_type "$INPUT_TYPE" --target_type "$TARGET_TYPE" --patience "$PATIENCE"
         else
-            python train_dfc2023.py --dataset_path "$DATASET_PATH" --input_type "$INPUT_TYPE" --target_type "$TARGET_TYPE" --gpu_count "$GPUS" 
+            python train_dfc2023.py --dataset_path "$DATASET_PATH" --input_type "$INPUT_TYPE" --target_type "$TARGET_TYPE" --gpu_count "$GPUS" --patience "$PATIENCE"
         fi
         
         # Clear CUDA cache again before prediction
