@@ -137,9 +137,12 @@ class Im2Height(LightningModule):
 		y_pred = self(x)
 		l1loss = F.l1_loss(y_pred, y)
 		l2loss = F.mse_loss(y_pred, y)
-		tensorboard_logs = { 'l1loss': l1loss, 'l2loss': l2loss }
+		
+		# Log metrics properly for PyTorch Lightning
+		self.log('l1loss', l1loss, prog_bar=True)
+		self.log('l2loss', l2loss, prog_bar=True)
 
-		return { 'loss': l1loss, 'log': tensorboard_logs }
+		return l1loss  # Return the loss directly
 
 	def configure_optimizers(self):
 
@@ -157,18 +160,12 @@ class Im2Height(LightningModule):
 		l2loss = F.mse_loss(y_pred, y)
 		ssim_loss = ssim(y_pred, y)
 
-		tensorboard_logs = { 'val_l1loss': l1loss, 'val_l2loss': l2loss, 'val_ssimloss': ssim_loss }
-
-		return tensorboard_logs
-
-	def on_validation_epoch_end(self):
-		# Get outputs from validation steps
-		outputs = self.trainer.callback_metrics
+		# Log metrics directly in validation step
+		self.log('val_l1loss', l1loss, prog_bar=True, sync_dist=True)
+		self.log('val_l2loss', l2loss, sync_dist=True)
+		self.log('val_ssimloss', ssim_loss, sync_dist=True)
 		
-		# Log metrics for the epoch
-		self.log("val_l1loss", outputs.get("val_l1loss", 0))
-		self.log("val_l2loss", outputs.get("val_l2loss", 0))
-		self.log("val_ssimloss", outputs.get("val_ssimloss", 0))
+		return {'val_l1loss': l1loss, 'val_l2loss': l2loss, 'val_ssimloss': ssim_loss}
 
 
 

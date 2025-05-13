@@ -10,10 +10,11 @@ from dfc2023_data import DFC2023Dataset
 
 
 # load config with same parameters as the original implementation
+# Using a smaller batch size to reduce GPU memory usage
 load_config = {
-    "batch_size": 6,
+    "batch_size": 2,  # Reduced from 6 to avoid out of memory errors
     "pin_memory": True,
-    "num_workers": 12
+    "num_workers": 4   # Reduced from 12 to lower memory usage
 }
 
 
@@ -90,13 +91,33 @@ def run(dataset_path, output_dir="weights/dfc2023", input_type="rgb", target_typ
     )
     
     # Set up trainer with callbacks
+    # Handle different GPU specifications correctly
+    if gpu_count is not None:
+        # If user passes in "0", we interpret it as "use GPU 0", not "use 0 GPUs"
+        if isinstance(gpu_count, str) and gpu_count.strip() == "0":
+            trainer_devices = [0]  # Use GPU 0
+        elif isinstance(gpu_count, int) and gpu_count == 0:
+            trainer_devices = [0]  # Use GPU 0
+        else:
+            # If it's a comma-separated list like "0,1", convert to a list of integers
+            if isinstance(gpu_count, str) and ',' in gpu_count:
+                trainer_devices = [int(g.strip()) for g in gpu_count.split(',')]
+            else:
+                # Otherwise use the value as is
+                trainer_devices = gpu_count
+    else:
+        trainer_devices = torch.cuda.device_count()
+    
     trainer = Trainer(
-        devices=gpu_count if gpu_count is not None else torch.cuda.device_count(),
+        devices=trainer_devices,
         accelerator="gpu",
         num_nodes=1,
         default_root_dir=output_dir,
         max_epochs=max_epochs,
-        callbacks=[early_stop, checkpoint_callback]
+        callbacks=[early_stop, checkpoint_callback],
+        gradient_clip_val=0.5,  # Add gradient clipping to improve stability
+        accumulate_grad_batches=3,  # Accumulate gradients to simulate larger batch size
+        precision=16  # Use mixed precision to reduce memory usage
     )
 
     # Train the model

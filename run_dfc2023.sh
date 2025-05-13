@@ -109,13 +109,20 @@ case $ACTION in
         echo "Step 1: Preprocessing dataset..."
         python preprocess_dfc2023.py --dataset_path "$DATASET_PATH" --input_type "$INPUT_TYPE" --target_type "$TARGET_TYPE"
         
+        # Clear CUDA cache before training
+        python -c "import torch; torch.cuda.empty_cache()" 2>/dev/null || true
+        
         # Train
         echo "Step 2: Training model..."
+        export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True  # Avoid memory fragmentation
         if [ -z "$GPUS" ]; then
             python train_dfc2023.py --dataset_path "$DATASET_PATH" --input_type "$INPUT_TYPE" --target_type "$TARGET_TYPE"
         else
-            python train_dfc2023.py --dataset_path "$DATASET_PATH" --input_type "$INPUT_TYPE" --target_type "$TARGET_TYPE" --gpu_count "$GPUS"
+            python train_dfc2023.py --dataset_path "$DATASET_PATH" --input_type "$INPUT_TYPE" --target_type "$TARGET_TYPE" --gpu_count "$GPUS" 
         fi
+        
+        # Clear CUDA cache again before prediction
+        python -c "import torch; torch.cuda.empty_cache()" 2>/dev/null || true
         
         # Find the best model weights
         BEST_WEIGHTS=$(find weights/dfc2023 -name "*best*.ckpt" | sort | tail -n 1)
