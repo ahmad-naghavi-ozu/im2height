@@ -1,5 +1,21 @@
 # IM2HEIGHT Updates
 
+## Output Consistency
+
+1. **Standardized output directories**: Consolidated all prediction outputs into a single "predictions" directory
+2. **Consistent padding**: Fixed padding discrepancy between training and prediction to ensure consistent output dimensions
+3. **Streamlined workflow**: Eliminated redundant folders to improve project organization
+
+## Dynamic Configuration Based on Image Size
+
+The training script now dynamically adjusts parameters based on input image dimensions:
+
+1. **Auto-scaling batch size**: Batch size is automatically reduced for larger images to prevent memory issues
+2. **Dynamic gradient accumulation**: For larger images, gradient accumulation is used to maintain effective batch size
+3. **Worker scaling**: Number of data loader workers scales with image dimensions
+4. **Precision adaptation**: For 512x512 or larger images, mixed precision (16-bit) is automatically used
+5. **Memory optimization**: Memory management is automatically tuned based on image size
+
 ## Multi-Channel Input Support
 
 The original implementation was designed to work with single-channel inputs. This update adds support for:

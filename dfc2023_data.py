@@ -261,8 +261,8 @@ class DFC2023PredictionDataset(torch.utils.data.Dataset):
             print(f"Limiting SAR input from {img.shape[0]} to 1 channel")
             img = img[:1]  # Keep only first channel
         
-        # Add padding similar to NpyPredictionDataset (applied to height and width)
-        padding = 3
+        # Add padding - matching the training dataset's padding value
+        padding = 0  # Changed from 3 to 0 to match DFC2023Dataset
         img = np.pad(img, ((0, 0), (padding, padding), (padding, padding)), "reflect")
         
         # Ensure we're working with contiguous array (fix any negative stride issues)

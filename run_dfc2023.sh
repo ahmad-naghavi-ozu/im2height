@@ -8,6 +8,11 @@ TARGET_TYPE="dsm"
 ACTION="train"  # Default action: train
 GPUS=""        # Default: use all available GPUs
 
+# Note: The script now uses dynamic configuration based on input image dimensions.
+# For 256x256 images (original paper), it will use batch_size=6, workers=12
+# For 512x512 images (DFC2023), it will automatically adjust to lower values
+# to optimize memory usage and performance.
+
 # Help function
 function show_help {
     echo "Usage: ./run_dfc2023.sh [OPTIONS]"

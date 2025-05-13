@@ -9,13 +9,51 @@ from im2height import Im2Height
 from dfc2023_data import DFC2023Dataset
 
 
-# load config with same parameters as the original implementation
-# Using a smaller batch size to reduce GPU memory usage
-load_config = {
-    "batch_size": 2,  # Reduced from 6 to avoid out of memory errors
-    "pin_memory": True,
-    "num_workers": 4   # Reduced from 12 to lower memory usage
-}
+# Dynamic configuration based on input image size
+def get_dynamic_config(image_size=(256, 256)):
+    """
+    Calculate appropriate batch size and worker count based on image dimensions.
+    The original paper used a batch size of 6 for 256x256 images.
+    
+    Args:
+        image_size: Tuple of (width, height) of input images
+        
+    Returns:
+        Dictionary with batch_size and num_workers calculated dynamically
+    """
+    # Base values for 256x256 images from the paper
+    BASE_SIZE = 256 * 256
+    BASE_BATCH_SIZE = 6
+    BASE_WORKERS = 12
+    
+    # Calculate the ratio of current image size to base size
+    # Use squared relationship as memory usage grows quadratically with image size
+    size_ratio = (image_size[0] * image_size[1]) / BASE_SIZE
+    
+    # Adjust batch size based on image dimensions (inverse relationship)
+    # For larger images, use smaller batch size
+    adjusted_batch_size = max(1, int(BASE_BATCH_SIZE / size_ratio))
+    
+    # Adjust number of workers (less aggressive scaling)
+    adjusted_workers = max(2, int(BASE_WORKERS / (size_ratio ** 0.5)))
+    
+    # For gradient accumulation, we want to simulate a larger effective batch size
+    # Ideal effective batch size = 12 (for 512x512 images, this means batch_size=3, accum=4)
+    gradient_accum = max(1, int(BASE_BATCH_SIZE / adjusted_batch_size))
+    
+    print(f"Using dynamic configuration for image size {image_size}:")
+    print(f"  - Batch size: {adjusted_batch_size} (base: {BASE_BATCH_SIZE})")
+    print(f"  - Workers: {adjusted_workers} (base: {BASE_WORKERS})")
+    print(f"  - Gradient accumulation: {gradient_accum} (effective batch: {adjusted_batch_size * gradient_accum})")
+    
+    return {
+        "config": {
+            "batch_size": adjusted_batch_size,
+            "pin_memory": True,
+            "num_workers": adjusted_workers
+        },
+        "gradient_accum": gradient_accum
+    }
 
 
 def run(dataset_path, output_dir="weights/dfc2023", input_type="rgb", target_type="dsm", 
@@ -39,7 +77,19 @@ def run(dataset_path, output_dir="weights/dfc2023", input_type="rgb", target_typ
     train_dataset = DFC2023Dataset(dataset_path, 'train', input_type, target_type)
     valid_dataset = DFC2023Dataset(dataset_path, 'valid', input_type, target_type)
     
-    # Initialize data loaders
+    # Check input sample to determine dimensions and channels
+    sample_input, _ = train_dataset[0]
+    
+    # Get image dimensions (height, width) - channels are in first position for PyTorch tensors
+    image_height, image_width = sample_input.shape[1], sample_input.shape[2]
+    image_size = (image_width, image_height)
+    
+    # Get dynamic configuration based on image size
+    dynamic_config = get_dynamic_config(image_size)
+    load_config = dynamic_config["config"]
+    gradient_accum = dynamic_config["gradient_accum"]
+    
+    # Initialize data loaders with dynamic configuration
     train_loader = torch.utils.data.DataLoader(
         train_dataset, 
         shuffle=True, 
@@ -50,9 +100,6 @@ def run(dataset_path, output_dir="weights/dfc2023", input_type="rgb", target_typ
         valid_dataset, 
         **load_config
     )
-    
-    # Check input sample to determine number of input channels
-    sample_input, _ = train_dataset[0]
     
     # Ensure we're getting the channel count, not image dimensions
     # For RGB images this should be 3, for grayscale 1
@@ -90,6 +137,10 @@ def run(dataset_path, output_dir="weights/dfc2023", input_type="rgb", target_typ
         save_last=True
     )
     
+    # Determine appropriate memory saving techniques based on image size
+    use_mixed_precision = (image_width >= 512 or image_height >= 512)
+    precision = 16 if use_mixed_precision else 32
+    
     # Set up trainer with callbacks
     # Handle different GPU specifications correctly
     if gpu_count is not None:
@@ -116,8 +167,8 @@ def run(dataset_path, output_dir="weights/dfc2023", input_type="rgb", target_typ
         max_epochs=max_epochs,
         callbacks=[early_stop, checkpoint_callback],
         gradient_clip_val=0.5,  # Add gradient clipping to improve stability
-        accumulate_grad_batches=3,  # Accumulate gradients to simulate larger batch size
-        precision=16  # Use mixed precision to reduce memory usage
+        accumulate_grad_batches=gradient_accum,  # Use dynamic gradient accumulation
+        precision=precision  # Use mixed precision for larger images
     )
 
     # Train the model
