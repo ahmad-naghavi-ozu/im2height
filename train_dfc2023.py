@@ -9,19 +9,20 @@ from im2height import Im2Height
 from dfc2023_data import DFC2023Dataset
 
 
-# Dynamic configuration based on input image size
-def get_dynamic_config(image_size=(256, 256)):
+# Dynamic configuration based on input image size and available GPUs
+def get_dynamic_config(image_size=(256, 256), num_gpus=1):
     """
-    Calculate appropriate batch size and worker count based on image dimensions.
-    The original paper used a batch size of 6 for 256x256 images.
+    Calculate appropriate batch size and worker count based on image dimensions and available GPUs.
+    The original paper used a batch size of 6 for 256x256 images on a single GPU.
     
     Args:
         image_size: Tuple of (width, height) of input images
+        num_gpus: Number of GPUs being used for training
         
     Returns:
         Dictionary with batch_size and num_workers calculated dynamically
     """
-    # Base values for 256x256 images from the paper
+    # Base values for 256x256 images from the paper (for a single GPU)
     BASE_SIZE = 256 * 256
     BASE_BATCH_SIZE = 6
     BASE_WORKERS = 12
@@ -34,14 +35,20 @@ def get_dynamic_config(image_size=(256, 256)):
     # For larger images, use smaller batch size
     adjusted_batch_size = max(1, int(BASE_BATCH_SIZE / size_ratio))
     
+    # Scale with number of GPUs - we can use more total batch size with more GPUs
+    # But be conservative with the scaling (sqrt) to avoid out-of-memory errors
+    if num_gpus > 1:
+        adjusted_batch_size = max(1, int(adjusted_batch_size * (num_gpus ** 0.5)))
+    
     # Adjust number of workers (less aggressive scaling)
-    adjusted_workers = max(2, int(BASE_WORKERS / (size_ratio ** 0.5)))
+    # Each GPU can handle its own workers
+    adjusted_workers = max(2, int((BASE_WORKERS / (size_ratio ** 0.5)) * num_gpus))
     
     # For gradient accumulation, we want to simulate a larger effective batch size
-    # Ideal effective batch size = 12 (for 512x512 images, this means batch_size=3, accum=4)
+    # With multiple GPUs, we need less accumulation as we're already parallelizing
     gradient_accum = max(1, int(BASE_BATCH_SIZE / adjusted_batch_size))
     
-    print(f"Using dynamic configuration for image size {image_size}:")
+    print(f"Using dynamic configuration for image size {image_size} with {num_gpus} GPU(s):")
     print(f"  - Batch size: {adjusted_batch_size} (base: {BASE_BATCH_SIZE})")
     print(f"  - Workers: {adjusted_workers} (base: {BASE_WORKERS})")
     print(f"  - Gradient accumulation: {gradient_accum} (effective batch: {adjusted_batch_size * gradient_accum})")
@@ -84,8 +91,20 @@ def run(dataset_path, output_dir="weights/dfc2023", input_type="rgb", target_typ
     image_height, image_width = sample_input.shape[1], sample_input.shape[2]
     image_size = (image_width, image_height)
     
-    # Get dynamic configuration based on image size
-    dynamic_config = get_dynamic_config(image_size)
+    # Count available GPUs or use the specified count
+    num_available_gpus = 1  # Default to 1 GPU
+    if gpu_count is not None:
+        if gpu_count.strip() == "0":
+            num_available_gpus = 1  # Using GPU 0
+        elif ',' in gpu_count:
+            num_available_gpus = len([int(g.strip()) for g in gpu_count.split(',')])
+        elif gpu_count.strip().isdigit():
+            num_available_gpus = max(1, int(gpu_count.strip()))
+    else:
+        num_available_gpus = torch.cuda.device_count()
+    
+    # Get dynamic configuration based on image size and number of GPUs
+    dynamic_config = get_dynamic_config(image_size, num_available_gpus)
     load_config = dynamic_config["config"]
     gradient_accum = dynamic_config["gradient_accum"]
     

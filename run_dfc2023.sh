@@ -30,6 +30,7 @@ function show_help {
     echo "  -w, --weights PATH        Path to model weights (for prediction only)"
     echo "  -o, --output DIR          Output directory (for prediction only)"
     echo "  -g, --gpus GPUs           Comma-separated list of GPU indices to use (e.g. '0,1' for first two GPUs)"
+    echo "                            This also affects batch size and worker count for optimal performance"
     echo "  -p, --patience NUMBER     Early stopping patience value for training (default: $PATIENCE)"
     echo ""
     echo "Examples:"
