@@ -2,7 +2,7 @@
 # filepath: /home/asfand/Ahmad/IM2HEIGHT/run_dfc2023.sh
 
 # Default settings
-DATASET_PATH="/home/asfand/Ahmad/datasets/DFC2023Amini"
+DATASET_PATH="/home/asfand/Ahmad/datasets/DFC2023S"
 INPUT_TYPE="rgb"
 TARGET_TYPE="dsm"
 ACTION="train"  # Default action: train
@@ -37,7 +37,9 @@ function show_help {
     echo "  ./run_dfc2023.sh --action preprocess"
     echo "  ./run_dfc2023.sh --action train"
     echo "  ./run_dfc2023.sh --action train --patience 20"
-    echo "  ./run_dfc2023.sh --action predict --weights weights/dfc2023/best_run.ckpt --output predictions"
+    echo "  ./run_dfc2023.sh --action predict                                    # Auto-finds best weights"
+    echo "  ./run_dfc2023.sh --action predict --weights path/to/specific.ckpt    # Use specific weights"
+    echo "  ./run_dfc2023.sh --action predict --output custom_predictions        # Custom output directory"
     echo "  ./run_dfc2023.sh --action all"
     echo "  ./run_dfc2023.sh --action all --patience 20"
 }
@@ -112,9 +114,16 @@ case $ACTION in
         ;;
     predict)
         if [ -z "$WEIGHTS" ]; then
-            echo "Error: Model weights path is required for prediction."
-            echo "Use --weights to specify the path to model weights."
-            exit 1
+            # Automatically find the best model weights
+            BEST_WEIGHTS=$(find "weights/${DATASET_NAME}" -name "*best*.ckpt" | sort | tail -n 1)
+            if [ -z "$BEST_WEIGHTS" ]; then
+                echo "Error: No model weights found in weights/${DATASET_NAME}/"
+                echo "Please specify weights path using --weights option, or train a model first."
+                exit 1
+            else
+                echo "No weights specified. Using automatically found best model: $BEST_WEIGHTS"
+                WEIGHTS="$BEST_WEIGHTS"
+            fi
         fi
         if [ -z "$OUTPUT_DIR" ]; then
             OUTPUT_DIR="predictions/${DATASET_NAME}"
