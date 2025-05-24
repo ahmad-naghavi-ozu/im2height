@@ -15,6 +15,18 @@ from scipy.ndimage import gaussian_gradient_magnitude
 # Ensure PIL can handle truncated images
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
+
+def prediction_collate_fn(batch):
+	"""
+	Custom collate function for prediction data.
+	Handles batching of (file_path, tensor) tuples.
+	"""
+	file_paths, tensors = zip(*batch)
+	# Stack tensors into a batch
+	tensor_batch = torch.stack(tensors, dim=0)
+	return list(file_paths), tensor_batch
+
+
 class NpyDataset(torch.utils.data.Dataset):
 	'''
 	A supervised learning dataset class to handle serialised

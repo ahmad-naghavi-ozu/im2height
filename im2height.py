@@ -167,8 +167,17 @@ class Im2Height(LightningModule):
 		
 		return {'val_l1loss': l1loss, 'val_l2loss': l2loss, 'val_ssimloss': ssim_loss}
 
-
-
-if __name__ == "__main__":
-	net = Im2Height()
-	print(net)
+	def predict_step(self, batch, batch_idx):
+		"""
+		Prediction step for PyTorch Lightning.
+		Handles the batch format from prediction_collate_fn.
+		"""
+		if isinstance(batch, (tuple, list)) and len(batch) == 2:
+			# Handle collated batch: (file_paths, tensor_batch)
+			file_paths, x = batch
+			y_pred = self(x)
+			return y_pred
+		else:
+			# Handle direct tensor input
+			y_pred = self(batch)
+			return y_pred

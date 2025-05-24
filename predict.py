@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 from pytorch_lightning import Trainer
 from im2height import Im2Height
-from data import PredictionDataset
+from data import PredictionDataset, prediction_collate_fn
 
 
 def get_dynamic_predict_config(image_size=(256, 256), num_gpus=1):
@@ -26,7 +26,7 @@ def get_dynamic_predict_config(image_size=(256, 256), num_gpus=1):
 
 
 def run(dataset_path=None, input_files=None, output_dir="predictions", weights=None, 
-        input_type="rgb", auto_find_weights=True):
+        input_type="rgb", auto_find_weights=True, quiet=False):
     """
     Run predictions using trained Im2Height model.
     
@@ -46,7 +46,8 @@ def run(dataset_path=None, input_files=None, output_dir="predictions", weights=N
             input_files = [f for f in os.listdir('.') if f.endswith('.npy')]
             if not input_files:
                 raise ValueError("No input specified and no .npy files found in current directory")
-            print(f"Using legacy mode: found {len(input_files)} .npy files")
+            if not quiet:
+                print(f"Using legacy mode: found {len(input_files)} .npy files")
         except:
             raise ValueError("Must specify either dataset_path or input_files")
     
@@ -64,9 +65,10 @@ def run(dataset_path=None, input_files=None, output_dir="predictions", weights=N
     else:
         raise ValueError("No samples found for prediction")
     
-    print(f"Input channels: {in_channels}")
-    print(f"Image size: {image_size}")
-    print(f"Prediction samples: {len(prediction_dataset)}")
+    if not quiet:
+        print(f"Input channels: {in_channels}")
+        print(f"Image size: {image_size}")
+        print(f"Prediction samples: {len(prediction_dataset)}")
     
     # Auto-find weights if not specified
     if weights is None and auto_find_weights:
@@ -85,17 +87,20 @@ def run(dataset_path=None, input_files=None, output_dir="predictions", weights=N
         
         if found_weights:
             weights = sorted(found_weights)[-1]  # Use most recent
-            print(f"Auto-found weights: {weights}")
+            if not quiet:
+                print(f"Auto-found weights: {weights}")
         else:
             raise ValueError("No weights specified and none found automatically")
     
     # Load model
     try:
         model = Im2Height.load_from_checkpoint(weights)
-        print(f"Loaded model from checkpoint: {weights}")
+        if not quiet:
+            print(f"Loaded model from checkpoint: {weights}")
     except Exception as e:
-        print(f"Failed to load from checkpoint: {e}")
-        print("Creating new model and loading state dict...")
+        if not quiet:
+            print(f"Failed to load from checkpoint: {e}")
+            print("Creating new model and loading state dict...")
         model = Im2Height(in_channels=in_channels, out_channels=1)
         
         # Try to load state dict manually
@@ -113,9 +118,14 @@ def run(dataset_path=None, input_files=None, output_dir="predictions", weights=N
     load_config = get_dynamic_predict_config(image_size, num_gpus)
     
     # Create data loader
-    prediction_loader = torch.utils.data.DataLoader(prediction_dataset, **load_config)
+    prediction_loader = torch.utils.data.DataLoader(
+        prediction_dataset, 
+        collate_fn=prediction_collate_fn,
+        **load_config
+    )
     
-    print(f"Prediction loader: {len(prediction_loader)} batches")
+    if not quiet:
+        print(f"Prediction loader: {len(prediction_loader)} batches")
     
     # Set up trainer for prediction
     trainer = Trainer(
@@ -126,11 +136,13 @@ def run(dataset_path=None, input_files=None, output_dir="predictions", weights=N
     )
     
     # Run predictions
-    print("Running predictions...")
+    if not quiet:
+        print("Running predictions...")
     predictions = trainer.predict(model, prediction_loader)
     
     # Save predictions
-    print(f"Saving predictions to {output_dir}")
+    if not quiet:
+        print(f"Saving predictions to {output_dir}")
     for batch_idx, (file_paths, pred_batch) in enumerate(zip(
         [batch[0] for batch in prediction_loader], predictions)):
         
@@ -148,7 +160,8 @@ def run(dataset_path=None, input_files=None, output_dir="predictions", weights=N
             
             np.save(output_path, pred_clean.cpu().numpy())
     
-    print(f"Predictions completed! Results saved to {output_dir}")
+    if not quiet:
+        print(f"Predictions completed! Results saved to {output_dir}")
 
 
 if __name__ == '__main__':
@@ -165,6 +178,8 @@ if __name__ == '__main__':
                         help="Input modality for structured datasets")
     parser.add_argument("--no_auto_weights", action="store_true",
                         help="Disable automatic weight finding")
+    parser.add_argument("--quiet", action="store_true",
+                        help="Suppress verbose output")
     
     # Backward compatibility arguments
     parser.add_argument("--input", type=str, nargs="+", default=None,
@@ -180,7 +195,8 @@ if __name__ == '__main__':
         run(
             input_files=args.input, 
             output_dir=args.output or "predictions", 
-            weights=args.weights
+            weights=args.weights,
+            quiet=args.quiet
         )
     else:
         # New interface
@@ -190,5 +206,6 @@ if __name__ == '__main__':
             output_dir=args.output_dir,
             weights=args.weights,
             input_type=args.input_type,
-            auto_find_weights=not args.no_auto_weights
+            auto_find_weights=not args.no_auto_weights,
+            quiet=args.quiet
         )
