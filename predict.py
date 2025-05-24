@@ -92,23 +92,10 @@ def run(dataset_path=None, input_files=None, output_dir="predictions", weights=N
         else:
             raise ValueError("No weights specified and none found automatically")
     
-    # Load model
-    try:
-        model = Im2Height.load_from_checkpoint(weights)
-        if not quiet:
-            print(f"Loaded model from checkpoint: {weights}")
-    except Exception as e:
-        if not quiet:
-            print(f"Failed to load from checkpoint: {e}")
-            print("Creating new model and loading state dict...")
-        model = Im2Height(in_channels=in_channels, out_channels=1)
-        
-        # Try to load state dict manually
-        checkpoint = torch.load(weights, map_location='cpu')
-        if 'state_dict' in checkpoint:
-            model.load_state_dict(checkpoint['state_dict'])
-        else:
-            model.load_state_dict(checkpoint)
+    # Load model with correct hyperparameters
+    model = Im2Height.load_from_checkpoint(weights, in_channels=in_channels, out_channels=1)
+    if not quiet:
+        print(f"Loaded model from checkpoint: {weights}")
     
     # Create output directory
     os.makedirs(output_dir, exist_ok=True)
