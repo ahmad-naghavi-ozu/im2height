@@ -37,7 +37,9 @@ function show_help {
     echo "  ./run_dfc2023.sh --action preprocess"
     echo "  ./run_dfc2023.sh --action train"
     echo "  ./run_dfc2023.sh --action train --patience 20"
-    echo "  ./run_dfc2023.sh --action predict --weights weights/dfc2023/best_run.ckpt --output predictions"
+    echo "  ./run_dfc2023.sh --action predict                                    # Auto-finds best weights"
+    echo "  ./run_dfc2023.sh --action predict --weights path/to/specific.ckpt    # Use specific weights"
+    echo "  ./run_dfc2023.sh --action predict --output custom_predictions        # Custom output directory"
     echo "  ./run_dfc2023.sh --action all"
     echo "  ./run_dfc2023.sh --action all --patience 20"
 }
