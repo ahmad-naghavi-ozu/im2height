@@ -139,7 +139,7 @@ def run(dataset_path=None, input_files=None, output_dir="predictions", weights=N
             output_path = os.path.join(output_dir, f"{basename}_pred.npy")
             
             # Remove padding and save
-            padding = 3
+            padding = 0  # Must match the padding used in PredictionDataset
             if padding > 0:
                 pred_clean = pred[0, padding:-padding, padding:-padding]
             else:
