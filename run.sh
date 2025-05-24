@@ -48,8 +48,8 @@ function show_help {
     echo "Actions:"
     echo "  info                      Display dataset information and format"
     echo "  preprocess                Convert images to NPY format (MANDATORY for image datasets)"
-    echo "  train                     Train the model (requires NPY format)"
-    echo "  predict                   Run predictions (requires NPY format)"
+    echo "  train                     Train the model (automatically uses NPY format if available)"
+    echo "  predict                   Run predictions (automatically uses NPY format if available)"
     echo "  all                       Run complete pipeline: preprocess + train + predict"
     echo ""
     echo "Examples:"
@@ -59,17 +59,26 @@ function show_help {
     echo "  # Convert image dataset to NPY (REQUIRED for image datasets)"
     echo "  ./run.sh --action preprocess --dataset /path/to/DFC2023Amini"
     echo "  "
+    echo "  # Train on dataset (automatically uses NPY if available)"
+    echo "  ./run.sh --action train --dataset /path/to/DFC2023Amini --patience 20"
+    echo "  "
+    echo "  # Predict on dataset (automatically uses NPY if available)"
+    echo "  ./run.sh --action predict --dataset /path/to/DFC2023Amini --weights weights/best.ckpt"
+    echo "  "
     echo "  # Complete pipeline for image dataset"
     echo "  ./run.sh --action all --dataset /path/to/dataset --gpus 0,1"
-    echo "  "
-    echo "  # Train NPY dataset (preprocessing already done)"
-    echo "  ./run.sh --action train --dataset /path/to/npy_dataset --patience 20"
     echo ""
     echo "WORKFLOW:"
     echo "  1. info      → Check dataset format"
     echo "  2. preprocess → Convert images to NPY (if needed)"
-    echo "  3. train     → Train model on NPY files"
-    echo "  4. predict   → Generate predictions from NPY files"
+    echo "  3. train     → Train model (auto-detects NPY format)"
+    echo "  4. predict   → Generate predictions (auto-detects NPY format)"
+    echo ""
+    echo "SMART PATH DETECTION:"
+    echo "  • train/predict actions automatically use preprocessed NPY data when available"
+    echo "  • Falls back to original path if NPY data not found"
+    echo "  • NPY format: data/DATASET_NAME/ (faster loading, preprocessed)"
+    echo "  • Original format: your specified dataset path"
 }
 
 # Process command-line arguments
@@ -175,8 +184,18 @@ case $ACTION in
     train)
         echo "=== Training Im2Height model on ${DATASET_NAME} dataset ==="
         
+        # Check if NPY dataset exists, otherwise use original path
+        NPY_DATASET_PATH="data/${DATASET_NAME}"
+        if [ -d "$NPY_DATASET_PATH" ]; then
+            echo "Using preprocessed NPY dataset: $NPY_DATASET_PATH"
+            TRAINING_DATASET_PATH="$NPY_DATASET_PATH"
+        else
+            echo "NPY dataset not found at $NPY_DATASET_PATH, using original path: $DATASET_PATH"
+            TRAINING_DATASET_PATH="$DATASET_PATH"
+        fi
+        
         # Build training command
-        CMD="python train.py --dataset_path \"$DATASET_PATH\" --input_type \"$INPUT_TYPE\" --target_type \"$TARGET_TYPE\" --max_epochs \"$MAX_EPOCHS\" --patience \"$PATIENCE\" --output_dir \"weights/${DATASET_NAME}\""
+        CMD="python train.py --dataset_path \"$TRAINING_DATASET_PATH\" --input_type \"$INPUT_TYPE\" --target_type \"$TARGET_TYPE\" --max_epochs \"$MAX_EPOCHS\" --patience \"$PATIENCE\" --output_dir \"weights/${DATASET_NAME}\""
         
         # Add GPU specification if provided
         if [ ! -z "$GPUS" ]; then
