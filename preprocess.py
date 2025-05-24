@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Unified preprocessing script for Im2Height model that handles multiple dataset formats.
+Preprocessing script for Im2Height model that handles multiple dataset formats.
 
 This script can:
 1. Convert image datasets to NPY format for faster loading
@@ -55,7 +55,7 @@ def detect_dataset_format(dataset_path, split='train', input_type='rgb', target_
 def preprocess_dataset(dataset_path, output_path=None, input_type="rgb", target_type="dsm", 
                       force_reprocess=False, verbose=True):
     """
-    Unified preprocessing function that handles both image and NPY datasets.
+    Comprehensive preprocessing function that handles both image and NPY datasets.
     
     Args:
         dataset_path: Path to the dataset
@@ -263,21 +263,21 @@ def get_dataset_info(dataset_path, input_type="rgb", target_type="dsm"):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Unified preprocessing script for Im2Height model",
+        description="Preprocessing script for Im2Height model",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
   # Preprocess DFC2023 dataset
-  python preprocess_unified.py -d /path/to/DFC2023Amini
+  python preprocess.py -d /path/to/DFC2023Amini
   
   # Preprocess with SAR input instead of RGB
-  python preprocess_unified.py -d /path/to/dataset -i sar
+  python preprocess.py -d /path/to/dataset -i sar
   
   # Force reprocess existing NPY files
-  python preprocess_unified.py -d /path/to/dataset --force
+  python preprocess.py -d /path/to/dataset --force
   
   # Get dataset information without processing
-  python preprocess_unified.py -d /path/to/dataset --info-only
+  python preprocess.py -d /path/to/dataset --info-only
         """)
     
     parser.add_argument("-d", "--dataset_path", type=str, required=True,

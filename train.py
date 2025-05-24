@@ -7,7 +7,7 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from pytorch_lightning.callbacks import ModelCheckpoint
 from im2height import Im2Height
-from data import UnifiedDataset
+from data import Dataset
 
 
 # Dynamic configuration based on input image size and available GPUs
@@ -86,16 +86,16 @@ def run(dataset_path=None, input_type="rgb", target_type="dsm", max_epochs=1000,
     # Create output directory
     os.makedirs(output_dir, exist_ok=True)
     
-    # Initialize datasets using unified dataset class
-    train_dataset = UnifiedDataset(dataset_path, 'train', input_type, target_type)
+    # Initialize datasets using dataset class
+    train_dataset = Dataset(dataset_path, 'train', input_type, target_type)
     
     # Try to find validation data, fall back to test if not available
     try:
-        valid_dataset = UnifiedDataset(dataset_path, 'valid', input_type, target_type)
+        valid_dataset = Dataset(dataset_path, 'valid', input_type, target_type)
         print("Using validation dataset")
     except:
         try:
-            valid_dataset = UnifiedDataset(dataset_path, 'test', input_type, target_type)
+            valid_dataset = Dataset(dataset_path, 'test', input_type, target_type)
             print("Using test dataset for validation")
         except:
             raise ValueError("No validation or test data found")

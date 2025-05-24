@@ -1,99 +1,227 @@
-# IM2HEIGHT - Height Estimation from Single Monocular Imagery
+# Enhanced Im2Height: Multi-Dataset Height Estimation
 
-PyTorch (Lightning) implementation of Im2Height: [arXiv reference](https://arxiv.org/abs/1802.10249)
+Enhanced version of the Im2Height model with support for multiple datasets, improved GPU handling, and comprehensive workflow management.
 
-## Overview
+## ⚠️ **IMPORTANT: NPY-Only Workflow**
 
-This project implements a fully residual convolutional-deconvolutional network architecture for estimating height (DSM - Digital Surface Model) from a single monocular remote sensing image. The approach is based on the research paper "IM2HEIGHT: Height Estimation from Single Monocular Imagery via Fully Residual Convolutional-Deconvolutional Network" by Lichao Mou and Xiao Xiang Zhu.
+**Training and prediction ONLY work with NPY format files.** If your dataset contains raw images, you **MUST** run preprocessing first to convert them to NPY format.
 
-### Problem Statement
+## 🚀 Quick Start
 
-Height estimation from a single monocular image is an inherently ambiguous and technically ill-posed problem, with a large source of uncertainty coming from the overall scale. This implementation addresses this challenge using deep learning techniques.
+### **Workflow Overview:**
+1. **Check dataset** → `./run.sh --action info --dataset /path/to/dataset`
+2. **Preprocess** → `./run.sh --action preprocess --dataset /path/to/dataset` (if needed)
+3. **Train** → `./run.sh --action train --dataset /path/to/dataset`
+4. **Predict** → `./run.sh --action predict --dataset /path/to/dataset`
 
-### Network Architecture
-
-The network consists of two main components:
-- **Convolutional sub-network**: Transforms the input remote sensing image to high-level multidimensional feature representation
-- **Deconvolutional sub-network**: Generates height map from the extracted features
-
-Key features of the architecture:
-- Fully residual learning to improve optimization
-- Skip connection between the first residual block and the next-to-last block to preserve fine edge details and boundaries
-- End-to-end training without any additional post-processing steps
-
-## Dataset Requirements
-
-The model expects the following data structure:
-```
-data/
-  ├── train/
-  │   ├── x/  # RGB aerial/satellite images stored as .npy files
-  │   └── y/  # Corresponding DSM (height) data stored as .npy files
-  └── test/
-      ├── x/  # Test RGB images stored as .npy files
-      └── y/  # Test DSM data stored as .npy files
-```
-
-Each RGB image should correspond to a height map of the same spatial dimensions.
-
-## Installation
-
-1. Clone the repository:
+### **Complete Pipeline:**
 ```bash
-git clone https://github.com/yourusername/IM2HEIGHT.git
+# Run everything automatically
+./run.sh --action all --dataset /path/to/your/dataset --gpus 0,1
+```
+
+## 📋 Supported Dataset Formats
+
+### **NPY Format (Required for Training/Prediction):**
+```
+dataset/
+├── train/
+│   ├── x/          # Input images as .npy files
+│   └── y/          # Target height maps as .npy files
+├── test/
+│   ├── x/          # Test input images as .npy files
+│   └── y/          # Test target height maps as .npy files
+└── valid/          # Optional validation split
+    ├── x/
+    └── y/
+```
+
+### **Raw Image Format (Requires Preprocessing):**
+```
+dataset/
+├── train/
+│   ├── rgb/        # RGB images (.jpg, .png, .tif)
+│   └── dsm/        # Height maps (.tif, .npy)
+├── test/
+│   ├── rgb/
+│   └── dsm/
+└── valid/
+    ├── rgb/
+    └── dsm/
+```
+
+## 🔧 Installation
+
+1. **Clone and setup:**
+```bash
+git clone <your-repo>
 cd IM2HEIGHT
-```
-
-2. Install dependencies:
-```bash
 pip install -r requirements.txt
 ```
 
-## Usage
-
-### Training
-
-To train the model from scratch:
-
+2. **Make scripts executable:**
 ```bash
-python train.py
+chmod +x run.sh
 ```
 
-Training parameters are configured in `train.py`, including:
-- Batch size: 6
-- Number of workers: 12
-- Max epochs: 1000
-- Early stopping with patience of 200 epochs
-- Model checkpoints saved based on validation loss
+## 📖 Usage Guide
 
-### Prediction
-
-To generate height maps from RGB images using a trained model:
-
+### **1. Check Dataset Information**
 ```bash
-python predict.py --input <input_directory> --output <output_directory> --weights <path_to_model_weights>
+./run.sh --action info --dataset /path/to/dataset
+```
+This will show:
+- Dataset format (NPY or image)
+- Split information (train/test/valid)
+- File counts and structure
+
+### **2. Preprocessing (Required for Image Datasets)**
+```bash
+# Convert image dataset to NPY format
+./run.sh --action preprocess --dataset /path/to/image_dataset
+
+# Force reprocessing even if NPY files exist
+./run.sh --action preprocess --dataset /path/to/dataset --force
 ```
 
-## Model Performance
+### **3. Training**
+```bash
+# Basic training
+./run.sh --action train --dataset /path/to/npy_dataset
 
-According to the paper, the model was evaluated using these metrics:
-- Mean Squared Error (MSE)
-- Mean Absolute Error (MAE)
-- Structural Similarity Index (SSIM)
+# Training with specific GPU configuration
+./run.sh --action train --dataset /path/to/dataset --gpus 0,1
 
-The model with skip connections significantly outperforms the basic residual conv-deconv network, particularly in preserving object boundaries and fine details.
+# Training with custom parameters
+./run.sh --action train --dataset /path/to/dataset \
+  --patience 50 --epochs 500 --gpus 0
+```
 
-## Applications
+### **4. Prediction**
+```bash
+# Prediction with automatic weight detection
+./run.sh --action predict --dataset /path/to/dataset
 
-The estimated height maps can be used for:
-1. Instance segmentation of buildings
-2. 3D scene understanding
-3. Urban planning and monitoring
-4. Change detection when combined with temporal data
+# Prediction with specific weights
+./run.sh --action predict --dataset /path/to/dataset \
+  --weights weights/model_best.ckpt --output custom_predictions/
+```
 
-## Citation
+### **5. Complete Pipeline**
+```bash
+# Run preprocess + train + predict automatically
+./run.sh --action all --dataset /path/to/dataset --gpus 0,1
+```
 
-If you use this code for your research, please cite:
+## 🎯 Enhanced Features
+
+### **Multi-Dataset Support**
+- **DFC2023Amini**: Street View imagery dataset
+- **DFC2023S**: Satellite imagery dataset  
+- **Custom datasets**: Any image format with corresponding height maps
+- **Legacy NPY**: Original Im2Height format
+
+### **Improved GPU Handling**
+- **Multi-GPU training** with automatic configuration
+- **Memory optimization** and CUDA cache management
+- **Dynamic GPU selection** via command line
+- **Memory-efficient loading** with lazy evaluation
+
+### **Robust Preprocessing**
+- **Automatic format detection** for input datasets
+- **Efficient NPY conversion** with caching
+- **Multiple image formats** (.jpg, .png, .tif, .tiff)
+- **Progress tracking** and error handling
+
+### **Enhanced Training**
+- **Early stopping** with configurable patience
+- **Model checkpointing** with best model selection
+- **Learning rate scheduling** and optimization
+- **Validation monitoring** and logging
+
+## 🛠️ Command Reference
+
+### **run.sh Options:**
+```bash
+Usage: ./run.sh [OPTIONS]
+
+Actions:
+  info                      Display dataset information and format
+  preprocess                Convert images to NPY format  
+  train                     Train the model (requires NPY format)
+  predict                   Run predictions (requires NPY format)
+  all                       Run complete pipeline
+
+Options:
+  -d, --dataset PATH        Path to dataset
+  -i, --input TYPE          Input data type: rgb, sar, etc. (default: rgb)
+  -t, --target TYPE         Target data type: dsm, etc. (default: dsm)
+  -g, --gpus GPUs           GPU indices to use (e.g. '0,1')
+  -p, --patience NUMBER     Early stopping patience (default: 200)
+  -e, --epochs NUMBER       Maximum training epochs (default: 1000)
+  -w, --weights PATH        Path to model weights (for prediction)
+  -o, --output DIR          Output directory (for prediction)
+  --force                   Force reprocess even if NPY files exist
+  --quiet                   Suppress verbose output
+```
+
+## 📊 Model Architecture
+
+Based on the original Im2Height paper ([arXiv:1802.10249](https://arxiv.org/abs/1802.10249)):
+
+- **Fully residual** convolutional-deconvolutional network
+- **Skip connections** for preserving fine details and boundaries  
+- **End-to-end training** without post-processing
+- **Multi-channel support** (RGB, SAR, etc.)
+
+## 🔍 Troubleshooting
+
+### **Common Issues:**
+
+**"ERROR: Image format dataset detected"**
+```bash
+# Solution: Run preprocessing first
+./run.sh --action preprocess --dataset /path/to/dataset
+```
+
+**GPU memory errors during training**
+```bash
+# Solution: Use fewer GPUs or reduce batch size
+./run.sh --action train --dataset /path/to/dataset --gpus 0
+```
+
+**No model weights found for prediction**
+```bash
+# Solution: Train a model first or specify weights path
+./run.sh --action train --dataset /path/to/dataset
+# Then predict:
+./run.sh --action predict --dataset /path/to/dataset
+```
+
+## 📁 Directory Structure
+
+```
+IM2HEIGHT/
+├── run.sh                      # Main workflow script
+├── data.py                     # Enhanced dataset handling (NPY-only)
+├── preprocess.py               # Multi-dataset preprocessing
+├── train.py                    # Enhanced training script
+├── predict.py                  # Prediction script
+├── im2height.py               # Enhanced model implementation
+├── augmenter.py               # Data augmentation
+├── requirements.txt           # Dependencies
+├── data/                      # Processed datasets (NPY format)
+├── weights/                   # Trained model weights
+├── predictions/              # Prediction outputs
+└── tools/                    # Visualization and metrics tools
+    ├── read_pdf.py            # PDF text extraction utility
+    ├── metrics.py             # Performance evaluation metrics
+    └── visualize_results_*.ipynb # Result visualization notebooks
+```
+
+## 📚 Citation
+
+If you use this enhanced version, please cite both the original paper and acknowledge the enhancements:
 
 ```bibtex
 @article{mou2018im2height,
@@ -104,8 +232,16 @@ If you use this code for your research, please cite:
 }
 ```
 
-## License
+## 🤝 Contributing
 
-[Include license information here]
+This enhanced version includes:
+- Multi-dataset support and preprocessing pipeline
+- Improved GPU handling and memory management  
+- Comprehensive workflow management with comprehensive error handling
+- Enhanced documentation and user experience
+
+## 📄 License
+
+This project maintains compatibility with the original Im2Height implementation while adding significant enhancements for production use and research applications.
 
 

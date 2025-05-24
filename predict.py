@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 from pytorch_lightning import Trainer
 from im2height import Im2Height
-from data import UnifiedPredictionDataset
+from data import PredictionDataset
 
 
 def get_dynamic_predict_config(image_size=(256, 256), num_gpus=1):
@@ -52,9 +52,9 @@ def run(dataset_path=None, input_files=None, output_dir="predictions", weights=N
     
     # Initialize prediction dataset
     if input_files is not None:
-        prediction_dataset = UnifiedPredictionDataset(input_files)
+        prediction_dataset = PredictionDataset(input_files)
     else:
-        prediction_dataset = UnifiedPredictionDataset(dataset_path, 'test', input_type)
+        prediction_dataset = PredictionDataset(dataset_path, 'test', input_type)
     
     # Get dataset characteristics
     if len(prediction_dataset) > 0:
@@ -151,107 +151,44 @@ def run(dataset_path=None, input_files=None, output_dir="predictions", weights=N
     print(f"Predictions completed! Results saved to {output_dir}")
 
 
-def predict_legacy(input_files, output, weights):
-    """
-    Legacy prediction function for backward compatibility.
-    """
-    print("Using legacy prediction mode...")
-    
-    # Create prediction dataset from input files
-    prediction_dataset = UnifiedPredictionDataset(input_files)
-    
-    if len(prediction_dataset) == 0:
-        raise ValueError("No valid input files found")
-    
-    # Get sample to determine input characteristics
-    _, sample_tensor = prediction_dataset[0]
-    in_channels = sample_tensor.shape[0]
-    image_size = (sample_tensor.shape[2], sample_tensor.shape[1])
-    
-    print(f"Input channels: {in_channels}, Image size: {image_size}")
-    
-    # Load model
-    try:
-        # Try loading with PyTorch Lightning
-        model = Im2Height.load_from_checkpoint(weights)
-        print(f"Loaded model from checkpoint: {weights}")
-        
-        # Check if the model's input channels match the data
-        if hasattr(model, 'in_channels') and model.in_channels != in_channels:
-            print(f"Warning: Model was trained with {model.in_channels} channels, but input has {in_channels} channels.")
-            print("Creating a new model with the correct number of input channels.")
-            model = Im2Height(in_channels=in_channels, out_channels=1)
-            # Load weights manually, skipping incompatible layers
-            checkpoint = torch.load(weights)
-            if 'state_dict' in checkpoint:
-                state_dict = checkpoint['state_dict']
-            else:
-                state_dict = checkpoint
-            
-            model_dict = model.state_dict()
-            # Filter out incompatible layers
-            filtered_dict = {k: v for k, v in state_dict.items() 
-                           if k in model_dict and model_dict[k].shape == v.shape}
-            model_dict.update(filtered_dict)
-            model.load_state_dict(model_dict, strict=False)
-            
-    except Exception as e:
-        print(f"Error loading model: {e}")
-        print(f"Creating a new model with {in_channels} input channels.")
-        model = Im2Height(in_channels=in_channels, out_channels=1)
-        
-        # Try to load state dict manually
-        try:
-            checkpoint = torch.load(weights, map_location='cpu')
-            if 'state_dict' in checkpoint:
-                state_dict = checkpoint['state_dict']
-            else:
-                state_dict = checkpoint
-            model.load_state_dict(state_dict, strict=False)
-        except Exception as load_error:
-            print(f"Warning: Could not load weights: {load_error}")
-    
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model.to(device)
-    model.eval()
-    
-    # Create data loader
-    load_config = get_dynamic_predict_config(image_size, 1)
-    data_loader = torch.utils.data.DataLoader(prediction_dataset, **load_config)
-    
-    # Create output directory
-    os.makedirs(output, exist_ok=True)
-    
-    # Predict and store
-    print(f"Processing {len(prediction_dataset)} files...")
-    for filenames, tensors in data_loader:
-        with torch.no_grad():
-            tensors = tensors.to(device)
-            predictions = model(tensors)
-        
-        for filename, pred in zip(filenames, predictions.cpu().detach().numpy()):
-            output_filename = os.path.join(output, f"{os.path.basename(filename)}")
-            np.save(output_filename, pred[0])
-    
-    print(f"Legacy predictions completed! Results saved to {output}")
-
-
 if __name__ == '__main__':
-    DESCRIPTION = """
-    Command line interface for batch compatible generic model prediction.
-
-    Usage:
-        $ python predict.py -i path/to/my/files/*.npy -o my/output/path -w pth/to/weight.ckpt
-
-    Performs predictions for all .npy files obtained through shell globbing
-    and serialises the outputs as specified in the main routine below.
-    """
-
-    parser = argparse.ArgumentParser(description=DESCRIPTION)
-    parser.add_argument("-i", "--input", type=str, help="Input file paths", required=True, nargs="+")
-    parser.add_argument("-o", "--output", type=str, help="Output directory", required=True)
-    parser.add_argument("-w", "--weights", type=str, help="Weights path", required=True)
+    parser = argparse.ArgumentParser(description="Run predictions using trained Im2Height model")
+    parser.add_argument("-d", "--dataset_path", type=str, default=None,
+                        help="Path to dataset directory (for structured datasets)")
+    parser.add_argument("-f", "--input_files", type=str, nargs="+", default=None,
+                        help="List of input files for direct prediction")
+    parser.add_argument("-o", "--output_dir", type=str, default="predictions",
+                        help="Output directory for predictions")
+    parser.add_argument("-w", "--weights", type=str, default=None,
+                        help="Path to model weights (auto-finds if not specified)")
+    parser.add_argument("-i", "--input_type", type=str, default="rgb",
+                        help="Input modality for structured datasets")
+    parser.add_argument("--no_auto_weights", action="store_true",
+                        help="Disable automatic weight finding")
+    
+    # Backward compatibility arguments
+    parser.add_argument("--input", type=str, nargs="+", default=None,
+                        help="Legacy: Input file paths")
+    parser.add_argument("--output", type=str, default=None,
+                        help="Legacy: Output directory")
+    
     args = parser.parse_args()
     
-    # Use legacy prediction function for backward compatibility
-    predict_legacy(args.input, args.output, args.weights)
+    # Handle backward compatibility
+    if args.input is not None or args.output is not None:
+        # Legacy interface
+        run(
+            input_files=args.input, 
+            output_dir=args.output or "predictions", 
+            weights=args.weights
+        )
+    else:
+        # New interface
+        run(
+            dataset_path=args.dataset_path,
+            input_files=args.input_files,
+            output_dir=args.output_dir,
+            weights=args.weights,
+            input_type=args.input_type,
+            auto_find_weights=not args.no_auto_weights
+        )
