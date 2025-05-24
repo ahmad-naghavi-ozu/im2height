@@ -199,7 +199,7 @@ case $ACTION in
         
         # Add GPU specification if provided
         if [ ! -z "$GPUS" ]; then
-            CMD="$CMD --gpus \"$GPUS\""
+            CMD="$CMD --gpu_count \"$GPUS\""
         fi
         
         # Add quiet flag if specified
@@ -251,6 +251,12 @@ case $ACTION in
             CMD="$CMD --quiet"
         fi
         
+        # Set GPU visibility if specified
+        if [ ! -z "$GPUS" ]; then
+            echo "Using GPUs: $GPUS"
+            export CUDA_VISIBLE_DEVICES="$GPUS"
+        fi
+        
         # Execute prediction command
         eval $CMD
         ;;
@@ -281,7 +287,7 @@ case $ACTION in
         
         # Add GPU specification if provided
         if [ ! -z "$GPUS" ]; then
-            CMD="$CMD --gpus \"$GPUS\""
+            CMD="$CMD --gpu_count \"$GPUS\""
         fi
         
         # Add quiet flag if specified
