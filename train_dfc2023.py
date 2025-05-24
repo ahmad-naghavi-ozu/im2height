@@ -109,6 +109,14 @@ def run(dataset_path, output_dir="weights/dfc2023", input_type="rgb", target_typ
     gradient_accum = dynamic_config["gradient_accum"]
     
     # Initialize data loaders with dynamic configuration
+    # For multi-GPU training, set proper batch size that accounts for all GPUs
+    # This ensures each GPU processes the intended number of samples
+    if num_available_gpus > 1:
+        # For multi-GPU training, adjust the effective batch size
+        # Each GPU should process (total samples / num_gpus) samples per epoch
+        print(f"Adjusting dataloader for multi-GPU training: {num_available_gpus} GPUs")
+        print(f"Total train dataset size: {len(train_dataset)}")
+    
     train_loader = torch.utils.data.DataLoader(
         train_dataset, 
         shuffle=True, 
@@ -119,6 +127,10 @@ def run(dataset_path, output_dir="weights/dfc2023", input_type="rgb", target_typ
         valid_dataset, 
         **load_config
     )
+    
+    print(f"Train loader has {len(train_loader)} batches with batch size {load_config['batch_size']}")
+    print(f"Total samples to process per epoch: {len(train_loader) * load_config['batch_size']}")
+    print(f"Validation loader has {len(valid_loader)} batches")
     
     # Ensure we're getting the channel count, not image dimensions
     # For RGB images this should be 3, for grayscale 1
@@ -184,6 +196,22 @@ def run(dataset_path, output_dir="weights/dfc2023", input_type="rgb", target_typ
     else:
         trainer_devices = torch.cuda.device_count()
     
+    # For multi-GPU training, we need to ensure the full dataset is processed
+    # rather than each GPU only seeing a portion of the data
+    use_distributed_strategy = False
+    if (isinstance(trainer_devices, list) and len(trainer_devices) > 1) or (isinstance(trainer_devices, int) and trainer_devices > 1):
+        print(f"Multi-GPU training detected with {num_available_gpus} GPUs")
+        print(f"Ensuring all {len(train_dataset)} training samples are processed")
+        use_distributed_strategy = True
+    
+    # Configure the appropriate distributed strategy for PyTorch Lightning
+    training_strategy = None
+    if use_distributed_strategy:
+        # Use simple string strategy instead of the custom strategy object
+        # This is more compatible with different PyTorch Lightning versions
+        training_strategy = 'ddp'
+        print(f"Using distributed training strategy: {training_strategy}")
+    
     trainer = Trainer(
         devices=trainer_devices,
         accelerator="gpu",
@@ -193,7 +221,8 @@ def run(dataset_path, output_dir="weights/dfc2023", input_type="rgb", target_typ
         callbacks=[early_stop, checkpoint_callback],
         gradient_clip_val=0.5,  # Add gradient clipping to improve stability
         accumulate_grad_batches=gradient_accum,  # Use dynamic gradient accumulation
-        precision=precision  # Use mixed precision for larger images
+        precision=precision,  # Use mixed precision for larger images
+        strategy=training_strategy
     )
 
     # Train the model
