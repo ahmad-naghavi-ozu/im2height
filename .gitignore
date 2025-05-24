@@ -27,18 +27,8 @@ ENV/
 /weights/
 /predictions/
 
-# Tools directory - track organized structure, exclude outputs
-# All Python scripts, documentation, and reports are tracked
-# Only exclude output directories, logs, and temporary files
-
-/tools/debug/outputs/
-/tools/debug/logs/
-/tools/debug/*.log
-/tools/debug/temp_*
-/tools/testing/outputs/
-/tools/testing/*.log
-/tools/testing/temp_*
-debug_train_output.txt
+# Tools directory - completely local, not tracked
+/tools/
 
 # Visualization directory - track code but exclude large output files
 /visualization/outputs/
