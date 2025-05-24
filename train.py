@@ -11,7 +11,7 @@ from data import Dataset
 
 
 # Dynamic configuration based on input image size and available GPUs
-def get_dynamic_config(image_size=(256, 256), num_gpus=1):
+def get_dynamic_config(image_size=(256, 256), num_gpus=1, quiet=False):
     """
     Calculate appropriate batch size and worker count based on image dimensions and available GPUs.
     The original paper used a batch size of 6 for 256x256 images on a single GPU.
@@ -44,10 +44,11 @@ def get_dynamic_config(image_size=(256, 256), num_gpus=1):
     # Gradient accumulation for effective batch size
     gradient_accum = max(1, int(BASE_BATCH_SIZE / adjusted_batch_size))
     
-    print(f"Using dynamic configuration for image size {image_size} with {num_gpus} GPU(s):")
-    print(f"  - Batch size: {adjusted_batch_size} (base: {BASE_BATCH_SIZE})")
-    print(f"  - Workers: {adjusted_workers} (base: {BASE_WORKERS})")
-    print(f"  - Gradient accumulation: {gradient_accum} (effective batch: {adjusted_batch_size * gradient_accum})")
+    if not quiet:
+        print(f"Using dynamic configuration for image size {image_size} with {num_gpus} GPU(s):")
+        print(f"  - Batch size: {adjusted_batch_size} (base: {BASE_BATCH_SIZE})")
+        print(f"  - Workers: {adjusted_workers} (base: {BASE_WORKERS})")
+        print(f"  - Gradient accumulation: {gradient_accum} (effective batch: {adjusted_batch_size * gradient_accum})")
     
     return {
         "config": {
@@ -60,7 +61,7 @@ def get_dynamic_config(image_size=(256, 256), num_gpus=1):
 
 
 def run(dataset_path=None, input_type="rgb", target_type="dsm", max_epochs=1000, 
-        patience=200, gpu_count=None, output_dir="weights"):
+        patience=200, gpu_count=None, output_dir="weights", quiet=False):
     """
     Train the Im2Height model on any supported dataset format.
     
@@ -79,7 +80,8 @@ def run(dataset_path=None, input_type="rgb", target_type="dsm", max_epochs=1000,
         # Try old NPY structure for backward compatibility
         if os.path.exists('data/train/x') and os.path.exists('data/train/y'):
             dataset_path = 'data'
-            print("Using legacy NPY dataset structure")
+            if not quiet:
+                print("Using legacy NPY dataset structure")
         else:
             raise ValueError("No dataset path provided and no legacy data structure found")
     
@@ -92,11 +94,13 @@ def run(dataset_path=None, input_type="rgb", target_type="dsm", max_epochs=1000,
     # Try to find validation data, fall back to test if not available
     try:
         valid_dataset = Dataset(dataset_path, 'valid', input_type, target_type)
-        print("Using validation dataset")
+        if not quiet:
+            print("Using validation dataset")
     except:
         try:
             valid_dataset = Dataset(dataset_path, 'test', input_type, target_type)
-            print("Using test dataset for validation")
+            if not quiet:
+                print("Using test dataset for validation")
         except:
             raise ValueError("No validation or test data found")
     
@@ -104,11 +108,12 @@ def run(dataset_path=None, input_type="rgb", target_type="dsm", max_epochs=1000,
     image_size = train_dataset.get_image_size()
     in_channels = train_dataset.get_input_channels()
     
-    print(f"Dataset format: {train_dataset.dataset_format}")
-    print(f"Input channels: {in_channels}")
-    print(f"Image size: {image_size}")
-    print(f"Training samples: {len(train_dataset)}")
-    print(f"Validation samples: {len(valid_dataset)}")
+    if not quiet:
+        print(f"Dataset format: {train_dataset.dataset_format}")
+        print(f"Input channels: {in_channels}")
+        print(f"Image size: {image_size}")
+        print(f"Training samples: {len(train_dataset)}")
+        print(f"Validation samples: {len(valid_dataset)}")
     
     # Determine GPU configuration
     num_available_gpus = 1
@@ -123,7 +128,7 @@ def run(dataset_path=None, input_type="rgb", target_type="dsm", max_epochs=1000,
         num_available_gpus = torch.cuda.device_count()
     
     # Get dynamic configuration
-    dynamic_config = get_dynamic_config(image_size, num_available_gpus)
+    dynamic_config = get_dynamic_config(image_size, num_available_gpus, quiet)
     load_config = dynamic_config["config"]
     gradient_accum = dynamic_config["gradient_accum"]
     
@@ -131,8 +136,9 @@ def run(dataset_path=None, input_type="rgb", target_type="dsm", max_epochs=1000,
     train_loader = torch.utils.data.DataLoader(train_dataset, shuffle=True, **load_config)
     valid_loader = torch.utils.data.DataLoader(valid_dataset, **load_config)
     
-    print(f"Train loader: {len(train_loader)} batches")
-    print(f"Validation loader: {len(valid_loader)} batches")
+    if not quiet:
+        print(f"Train loader: {len(train_loader)} batches")
+        print(f"Validation loader: {len(valid_loader)} batches")
     
     # Initialize model
     model = Im2Height(in_channels=in_channels, out_channels=1)
@@ -167,7 +173,8 @@ def run(dataset_path=None, input_type="rgb", target_type="dsm", max_epochs=1000,
             num_gpus = int(gpu_count.strip())
             trainer_devices = num_gpus if num_gpus > 0 else [0]
         else:
-            print(f"Warning: Invalid GPU specification '{gpu_count}'. Using all available GPUs.")
+            if not quiet:
+                print(f"Warning: Invalid GPU specification '{gpu_count}'. Using all available GPUs.")
             trainer_devices = torch.cuda.device_count()
     else:
         trainer_devices = torch.cuda.device_count()
@@ -178,7 +185,8 @@ def run(dataset_path=None, input_type="rgb", target_type="dsm", max_epochs=1000,
        (isinstance(trainer_devices, int) and trainer_devices > 1):
         use_distributed = True
         training_strategy = 'ddp'
-        print(f"Using distributed training with {num_available_gpus} GPUs")
+        if not quiet:
+            print(f"Using distributed training with {num_available_gpus} GPUs")
     else:
         training_strategy = None
     
@@ -186,7 +194,7 @@ def run(dataset_path=None, input_type="rgb", target_type="dsm", max_epochs=1000,
     use_mixed_precision = (image_size[0] >= 512 or image_size[1] >= 512)
     precision = 16 if use_mixed_precision else 32
     
-    if use_mixed_precision:
+    if use_mixed_precision and not quiet:
         print("Using mixed precision training for large images")
     
     # Create trainer
@@ -223,6 +231,8 @@ if __name__ == '__main__':
                         help="Early stopping patience")
     parser.add_argument("-g", "--gpu_count", type=str, default=None,
                         help="GPUs to use (comma-separated indices or integer count)")
+    parser.add_argument("--quiet", action="store_true",
+                        help="Suppress verbose output")
     
     args = parser.parse_args()
     

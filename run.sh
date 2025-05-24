@@ -324,6 +324,12 @@ case $ACTION in
                 CMD="$CMD --quiet"
             fi
             
+            # Set GPU visibility if specified
+            if [ ! -z "$GPUS" ]; then
+                echo "Using GPUs for prediction: $GPUS"
+                export CUDA_VISIBLE_DEVICES="$GPUS"
+            fi
+            
             # Execute prediction command
             eval $CMD
         fi
