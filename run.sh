@@ -192,6 +192,16 @@ case $ACTION in
         eval $CMD
         ;;
     predict)
+        # Check if NPY dataset exists, otherwise use original path
+        NPY_DATASET_PATH="data/${DATASET_NAME}"
+        if [ -d "$NPY_DATASET_PATH" ]; then
+            echo "Using preprocessed NPY dataset: $NPY_DATASET_PATH"
+            PREDICTION_DATASET_PATH="$NPY_DATASET_PATH"
+        else
+            echo "NPY dataset not found at $NPY_DATASET_PATH, using original path: $DATASET_PATH"
+            PREDICTION_DATASET_PATH="$DATASET_PATH"
+        fi
+        
         # Handle weights parameter
         if [ -z "$WEIGHTS" ]; then
             # Automatically find the best model weights
@@ -215,7 +225,7 @@ case $ACTION in
         echo "=== Running predictions on ${DATASET_NAME} dataset ==="
         
         # Build prediction command
-        CMD="python predict.py --dataset_path \"$DATASET_PATH\" --output_dir \"$OUTPUT_DIR\" --weights \"$WEIGHTS\" --input_type \"$INPUT_TYPE\""
+        CMD="python predict.py --dataset_path \"$PREDICTION_DATASET_PATH\" --output_dir \"$OUTPUT_DIR\" --weights \"$WEIGHTS\" --input_type \"$INPUT_TYPE\""
         
         # Add quiet flag if specified
         if [ ! -z "$QUIET_FLAG" ]; then

@@ -348,8 +348,8 @@ class PredictionDataset(torch.utils.data.Dataset):
 		# Load NPY file
 		img = np.rollaxis(np.load(file_path), 0, 3)
 		
-		# Add padding
-		padding = 3
+		# Keep consistent with training data (no padding)
+		padding = 0
 		img = np.pad(img, ((padding, padding), (padding, padding), (0, 0)), "reflect")
 		
 		# Convert to tensor
