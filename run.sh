@@ -11,12 +11,12 @@
 #
 
 # Default settings
-DATASET_PATH="/home/asfand/Ahmad/datasets/DFC2023Amini"
+DATASET_PATH="/home/asfand/Ahmad/datasets/DFC2023S"
 INPUT_TYPE="rgb"
 TARGET_TYPE="dsm"
 ACTION="train"  # Default action: train
 GPUS=""        # Default: use all available GPUs
-PATIENCE="200"  # Default early stopping patience
+PATIENCE="50"  # Default early stopping patience
 MAX_EPOCHS="1000"  # Default maximum epochs
 
 # Help function
