@@ -136,7 +136,7 @@ def run(dataset_path=None, input_files=None, output_dir="predictions", weights=N
         for i, (file_path, pred) in enumerate(zip(file_paths, pred_batch)):
             # Generate output filename
             basename = os.path.splitext(os.path.basename(file_path))[0]
-            output_path = os.path.join(output_dir, f"{basename}_pred.npy")
+            output_path = os.path.join(output_dir, f"{basename}.npy")
             
             # Remove padding and save
             padding = 0  # Must match the padding used in PredictionDataset
