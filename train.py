@@ -156,11 +156,11 @@ def run(dataset_path=None, input_type="rgb", target_type="dsm", max_epochs=1000,
     checkpoint_callback = ModelCheckpoint(
         dirpath=output_dir,
         filename=f'{dataset_name}-best-{{epoch:02d}}-{{val_l1loss:.4f}}',
-        save_top_k=5,
+        save_top_k=1,  # Only save the best model
         verbose=True,
         monitor='val_l1loss',
         mode='min',
-        save_last=True
+        save_last=True  # Save the most recent checkpoint
     )
     
     # Configure trainer devices
