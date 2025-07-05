@@ -18,7 +18,7 @@ ACTION="train"  # Default action: train
 GPUS="1,3"        # Default: use all available GPUs
 PATIENCE="20"  # Default early stopping patience
 MAX_EPOCHS="200"  # Default maximum epochs
-BATCH_SIZE="4"  # Default: use dynamic calculation
+BATCH_SIZE="8"  # Default: use dynamic calculation
 
 # Track background processes for cleanup
 BACKGROUND_PIDS=()
