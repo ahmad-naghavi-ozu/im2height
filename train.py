@@ -11,7 +11,7 @@ from data import Dataset
 
 
 # Dynamic configuration based on input image size and available GPUs
-def get_dynamic_config(image_size=(256, 256), num_gpus=1, quiet=False):
+def get_dynamic_config(image_size=(256, 256), num_gpus=1, custom_batch_size=None, quiet=False):
     """
     Calculate appropriate batch size and worker count based on image dimensions and available GPUs.
     The original paper used a batch size of 6 for 256x256 images on a single GPU.
@@ -19,6 +19,7 @@ def get_dynamic_config(image_size=(256, 256), num_gpus=1, quiet=False):
     Args:
         image_size: Tuple of (width, height) of input images
         num_gpus: Number of GPUs being used for training
+        custom_batch_size: Override dynamic batch size calculation (optional)
         
     Returns:
         Dictionary with batch_size and num_workers calculated dynamically
@@ -28,17 +29,24 @@ def get_dynamic_config(image_size=(256, 256), num_gpus=1, quiet=False):
     BASE_BATCH_SIZE = 6
     BASE_WORKERS = 12
     
-    # Calculate the ratio of current image size to base size
-    size_ratio = (image_size[0] * image_size[1]) / BASE_SIZE
-    
-    # Adjust batch size based on image dimensions (inverse relationship)
-    adjusted_batch_size = max(1, int(BASE_BATCH_SIZE / size_ratio))
-    
-    # Scale with number of GPUs (conservative scaling)
-    if num_gpus > 1:
-        adjusted_batch_size = max(1, int(adjusted_batch_size * (num_gpus ** 0.5)))
+    if custom_batch_size is not None:
+        # Use custom batch size if provided
+        adjusted_batch_size = custom_batch_size
+        if not quiet:
+            print(f"Using custom batch size: {adjusted_batch_size}")
+    else:
+        # Calculate the ratio of current image size to base size
+        size_ratio = (image_size[0] * image_size[1]) / BASE_SIZE
+        
+        # Adjust batch size based on image dimensions (inverse relationship)
+        adjusted_batch_size = max(1, int(BASE_BATCH_SIZE / size_ratio))
+        
+        # Scale with number of GPUs (conservative scaling)
+        if num_gpus > 1:
+            adjusted_batch_size = max(1, int(adjusted_batch_size * (num_gpus ** 0.5)))
     
     # Adjust number of workers
+    size_ratio = (image_size[0] * image_size[1]) / BASE_SIZE
     adjusted_workers = max(2, int((BASE_WORKERS / (size_ratio ** 0.5)) * num_gpus))
     
     # Gradient accumulation for effective batch size
@@ -61,7 +69,7 @@ def get_dynamic_config(image_size=(256, 256), num_gpus=1, quiet=False):
 
 
 def run(dataset_path=None, input_type="rgb", target_type="dsm", max_epochs=1000, 
-        patience=200, gpu_count=None, output_dir="weights", quiet=False):
+        patience=200, gpu_count=None, output_dir="weights", batch_size=None, quiet=False):
     """
     Train the Im2Height model on any supported dataset format.
     
@@ -73,6 +81,7 @@ def run(dataset_path=None, input_type="rgb", target_type="dsm", max_epochs=1000,
         patience: Early stopping patience
         gpu_count: GPU specification (None for auto-detect, '0,1' for specific GPUs)
         output_dir: Directory to save model weights
+        batch_size: Custom batch size (None for dynamic calculation)
     """
     
     # Handle backward compatibility - check for old NPY structure first
@@ -128,7 +137,7 @@ def run(dataset_path=None, input_type="rgb", target_type="dsm", max_epochs=1000,
         num_available_gpus = torch.cuda.device_count()
     
     # Get dynamic configuration
-    dynamic_config = get_dynamic_config(image_size, num_available_gpus, quiet)
+    dynamic_config = get_dynamic_config(image_size, num_available_gpus, batch_size, quiet)
     load_config = dynamic_config["config"]
     gradient_accum = dynamic_config["gradient_accum"]
     
@@ -231,6 +240,8 @@ if __name__ == '__main__':
                         help="Early stopping patience")
     parser.add_argument("-g", "--gpu_count", type=str, default=None,
                         help="GPUs to use (comma-separated indices or integer count)")
+    parser.add_argument("-b", "--batch_size", type=int, default=None,
+                        help="Batch size per GPU (overrides dynamic calculation)")
     parser.add_argument("--quiet", action="store_true",
                         help="Suppress verbose output")
     

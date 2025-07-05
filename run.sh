@@ -18,6 +18,112 @@ ACTION="train"  # Default action: train
 GPUS="1,3"        # Default: use all available GPUs
 PATIENCE="20"  # Default early stopping patience
 MAX_EPOCHS="200"  # Default maximum epochs
+BATCH_SIZE="4"  # Default: use dynamic calculation
+
+# Track background processes for cleanup
+BACKGROUND_PIDS=()
+SCRIPT_PID=$$
+
+# Enhanced cleanup function to kill background processes and clear GPU memory
+cleanup() {
+    echo "🧹 Starting cleanup process..."
+    
+    # Kill any background processes we started
+    for pid in "${BACKGROUND_PIDS[@]}"; do
+        if kill -0 "$pid" 2>/dev/null; then
+            echo "🔄 Killing tracked background process: $pid"
+            kill -TERM "$pid" 2>/dev/null || true
+            sleep 2
+            kill -KILL "$pid" 2>/dev/null || true
+        fi
+    done
+    
+    # Find and kill any Im2Height related processes
+    echo "🔍 Searching for Im2Height related processes..."
+    
+    # Get all python processes that might be related to Im2Height
+    IM2HEIGHT_PIDS=$(ps aux | grep -E "(train\.py|im2height|Im2Height)" | grep -v grep | grep -v "$$" | awk '{print $2}' || true)
+    
+    if [ ! -z "$IM2HEIGHT_PIDS" ]; then
+        echo "🎯 Found Im2Height processes: $IM2HEIGHT_PIDS"
+        for pid in $IM2HEIGHT_PIDS; do
+            if kill -0 "$pid" 2>/dev/null; then
+                echo "🔄 Killing Im2Height process: $pid"
+                kill -TERM "$pid" 2>/dev/null || true
+                sleep 1
+                kill -KILL "$pid" 2>/dev/null || true
+            fi
+        done
+    fi
+    
+    # Find and kill GPU processes started by this user's Im2Height
+    echo "🔍 Searching for GPU processes..."
+    GPU_PIDS=$(nvidia-smi --query-compute-apps=pid,process_name --format=csv,noheader,nounits 2>/dev/null | \
+               grep -E "(python.*train|im2height)" | awk -F',' '{print $1}' | tr -d ' ' || true)
+    
+    if [ ! -z "$GPU_PIDS" ]; then
+        echo "🎯 Found GPU processes: $GPU_PIDS"
+        for pid in $GPU_PIDS; do
+            # Check if this process belongs to current user
+            if ps -o user= -p "$pid" 2>/dev/null | grep -q "$(whoami)"; then
+                if kill -0 "$pid" 2>/dev/null; then
+                    echo "🔄 Killing GPU process: $pid"
+                    kill -TERM "$pid" 2>/dev/null || true
+                    sleep 1
+                    kill -KILL "$pid" 2>/dev/null || true
+                fi
+            fi
+        done
+    fi
+    
+    # Wait for processes to die
+    echo "⏳ Waiting for processes to terminate..."
+    sleep 3
+    
+    # Clear CUDA cache
+    echo "🗑️ Clearing CUDA cache..."
+    python -c "
+import torch
+import gc
+if torch.cuda.is_available():
+    torch.cuda.empty_cache()
+    gc.collect()
+    print('✅ CUDA cache cleared')
+else:
+    print('⚠️ CUDA not available')
+" 2>/dev/null || echo "❌ Failed to clear CUDA cache"
+    
+    # Final verification
+    echo "🔍 Final verification..."
+    REMAINING_PIDS=$(nvidia-smi --query-compute-apps=pid,process_name --format=csv,noheader,nounits 2>/dev/null | \
+                     grep -E "(python.*train|im2height)" | awk -F',' '{print $1}' | tr -d ' ' || true)
+    
+    if [ ! -z "$REMAINING_PIDS" ]; then
+        echo "⚠️ Warning: Some processes may still be running: $REMAINING_PIDS"
+    else
+        echo "✅ All GPU processes cleaned up successfully"
+    fi
+    
+    echo "🧹 Cleanup completed."
+}
+
+# Set up signal handlers for cleanup
+trap cleanup EXIT
+trap cleanup INT
+trap cleanup TERM
+
+# Create PID file for this script
+PID_FILE="/tmp/im2height_${USER}_$$.pid"
+echo $$ > "$PID_FILE"
+
+# Function to clean up PID file
+cleanup_pid_file() {
+    rm -f "$PID_FILE" 2>/dev/null || true
+}
+
+# Add PID file cleanup to main cleanup
+original_cleanup=$(declare -f cleanup)
+eval "${original_cleanup/echo \"🧹 Cleanup completed.\"/cleanup_pid_file; echo \"🧹 Cleanup completed.\"}"
 
 # Help function
 function show_help {
@@ -42,6 +148,7 @@ function show_help {
     echo "  -g, --gpus GPUs           Comma-separated list of GPU indices to use (e.g. '0,1')"
     echo "  -p, --patience NUMBER     Early stopping patience for training (default: $PATIENCE)"
     echo "  -e, --epochs NUMBER       Maximum training epochs (default: $MAX_EPOCHS)"
+    echo "  -b, --batch-size NUMBER   Batch size per GPU (default: dynamic calculation)"
     echo "  --force                   Force reprocess even if NPY files exist"
     echo "  --quiet                   Suppress verbose output"
     echo ""
@@ -51,6 +158,7 @@ function show_help {
     echo "  train                     Train the model (automatically uses NPY format if available)"
     echo "  predict                   Run predictions (automatically uses NPY format if available)"
     echo "  all                       Run complete pipeline: preprocess + train + predict"
+    echo "  cleanup                   Clean up GPU processes and memory"
     echo ""
     echo "Examples:"
     echo "  # Check dataset format and structure"
@@ -60,13 +168,13 @@ function show_help {
     echo "  ./run.sh --action preprocess --dataset /path/to/DFC2023Amini"
     echo "  "
     echo "  # Train on dataset (automatically uses NPY if available)"
-    echo "  ./run.sh --action train --dataset /path/to/DFC2023Amini --patience 20"
+    echo "  ./run.sh --action train --dataset /path/to/DFC2023Amini --patience 20 --batch-size 12"
     echo "  "
     echo "  # Predict on dataset (automatically uses NPY if available)"
     echo "  ./run.sh --action predict --dataset /path/to/DFC2023Amini --weights weights/best.ckpt"
     echo "  "
-    echo "  # Complete pipeline for image dataset"
-    echo "  ./run.sh --action all --dataset /path/to/dataset --gpus 0,1"
+    echo "  # Complete pipeline for image dataset with custom batch size"
+    echo "  ./run.sh --action all --dataset /path/to/dataset --gpus 0,1 --batch-size 16"
     echo ""
     echo "WORKFLOW:"
     echo "  1. info      → Check dataset format"
@@ -127,6 +235,10 @@ while [[ $# -gt 0 ]]; do
             MAX_EPOCHS="$2"
             shift 2
             ;;
+        -b|--batch-size)
+            BATCH_SIZE="$2"
+            shift 2
+            ;;
         --force)
             FORCE_FLAG="--force"
             shift
@@ -166,6 +278,58 @@ check_script() {
     fi
 }
 
+# Function to check for and optionally kill existing GPU processes
+check_gpu_processes() {
+    echo "🔍 Checking for existing GPU processes..."
+    
+    # Get current user's processes using GPUs
+    GPU_PROCESSES=$(nvidia-smi --query-compute-apps=pid,process_name,gpu_uuid --format=csv,noheader,nounits 2>/dev/null | grep -E "(python|train\.py)" || true)
+    
+    if [ ! -z "$GPU_PROCESSES" ]; then
+        echo "🎯 Found existing GPU processes:"
+        echo "$GPU_PROCESSES"
+        
+        # Extract PIDs of processes that might conflict
+        ALL_PYTHON_PIDS=$(echo "$GPU_PROCESSES" | awk -F',' '{print $1}' | tr -d ' ' || true)
+        
+        # Filter for Im2Height related processes
+        IM2HEIGHT_PIDS=""
+        for pid in $ALL_PYTHON_PIDS; do
+            if ps -p "$pid" -o args= 2>/dev/null | grep -q -E "(train\.py|im2height|Im2Height)"; then
+                IM2HEIGHT_PIDS="$IM2HEIGHT_PIDS $pid"
+            fi
+        done
+        
+        if [ ! -z "$IM2HEIGHT_PIDS" ]; then
+            echo "⚠️ Found potentially conflicting Im2Height processes:"
+            for pid in $IM2HEIGHT_PIDS; do
+                echo "  PID $pid: $(ps -p $pid -o args= 2>/dev/null | head -c 80)..."
+            done
+            echo ""
+            
+            read -p "🤔 Do you want to kill these processes before continuing? (y/N): " -n 1 -r
+            echo
+            if [[ $REPLY =~ ^[Yy]$ ]]; then
+                for pid in $IM2HEIGHT_PIDS; do
+                    echo "🔄 Killing process $pid..."
+                    kill -TERM "$pid" 2>/dev/null || true
+                    sleep 2
+                    kill -KILL "$pid" 2>/dev/null || true
+                done
+                echo "⏳ Waiting for GPU memory to clear..."
+                sleep 3
+                echo "✅ Process cleanup completed"
+            else
+                echo "⚠️ Continuing with existing processes. This may cause conflicts."
+            fi
+        else
+            echo "ℹ️ No Im2Height processes found, GPU processes belong to other applications"
+        fi
+    else
+        echo "✅ No existing GPU processes found"
+    fi
+}
+
 # Check for required scripts
 check_script "preprocess.py"
 check_script "train.py"
@@ -184,6 +348,9 @@ case $ACTION in
     train)
         echo "=== Training Im2Height model on ${DATASET_NAME} dataset ==="
         
+        # Check for existing GPU processes
+        check_gpu_processes
+        
         # Check if NPY dataset exists, otherwise use original path
         NPY_DATASET_PATH="data/${DATASET_NAME}"
         if [ -d "$NPY_DATASET_PATH" ]; then
@@ -194,8 +361,16 @@ case $ACTION in
             TRAINING_DATASET_PATH="$DATASET_PATH"
         fi
         
+        # Clear CUDA cache before training
+        python -c "import torch; torch.cuda.empty_cache()" 2>/dev/null || true
+        
         # Build training command
         CMD="python train.py --dataset_path \"$TRAINING_DATASET_PATH\" --input_type \"$INPUT_TYPE\" --target_type \"$TARGET_TYPE\" --max_epochs \"$MAX_EPOCHS\" --patience \"$PATIENCE\" --output_dir \"weights/${DATASET_NAME}\""
+        
+        # Add batch size if specified
+        if [ ! -z "$BATCH_SIZE" ]; then
+            CMD="$CMD --batch_size \"$BATCH_SIZE\""
+        fi
         
         # Add GPU specification if provided
         if [ ! -z "$GPUS" ]; then
@@ -207,8 +382,42 @@ case $ACTION in
             CMD="$CMD --quiet"
         fi
         
-        # Execute training command
-        eval $CMD
+        # Execute training command and capture PID
+        echo "Starting training with command: $CMD"
+        
+        # Use a more robust execution method
+        (
+            # Set up error handling within the subshell
+            set -e
+            exec $CMD
+        ) &
+        
+        TRAIN_PID=$!
+        BACKGROUND_PIDS+=($TRAIN_PID)
+        
+        echo "🚀 Training started with PID: $TRAIN_PID"
+        echo "📊 Monitoring training progress..."
+        
+        # Monitor the training process
+        while kill -0 $TRAIN_PID 2>/dev/null; do
+            sleep 10
+            # Optional: Add progress monitoring here
+        done
+        
+        # Wait for training to complete and get exit code
+        wait $TRAIN_PID
+        TRAIN_EXIT_CODE=$?
+        
+        echo "🏁 Training completed with exit code: $TRAIN_EXIT_CODE"
+        
+        if [ $TRAIN_EXIT_CODE -ne 0 ]; then
+            echo "❌ Training failed with exit code: $TRAIN_EXIT_CODE"
+            echo "🧹 Initiating cleanup due to training failure..."
+            cleanup
+            exit $TRAIN_EXIT_CODE
+        else
+            echo "✅ Training completed successfully"
+        fi
         ;;
     predict)
         # Check if NPY dataset exists, otherwise use original path
@@ -285,6 +494,11 @@ case $ACTION in
         # Build training command
         CMD="python train.py --dataset_path \"$NPY_DATASET_PATH\" --input_type \"$INPUT_TYPE\" --target_type \"$TARGET_TYPE\" --max_epochs \"$MAX_EPOCHS\" --patience \"$PATIENCE\" --output_dir \"weights/${DATASET_NAME}\""
         
+        # Add batch size if specified
+        if [ ! -z "$BATCH_SIZE" ]; then
+            CMD="$CMD --batch_size \"$BATCH_SIZE\""
+        fi
+        
         # Add GPU specification if provided
         if [ ! -z "$GPUS" ]; then
             CMD="$CMD --gpu_count \"$GPUS\""
@@ -334,9 +548,25 @@ case $ACTION in
             eval $CMD
         fi
         ;;
+    cleanup)
+        echo "=== Manual GPU Cleanup ==="
+        
+        # Show current GPU status
+        echo "Current GPU status:"
+        nvidia-smi --query-gpu=index,name,memory.used,memory.total,utilization.gpu --format=csv
+        
+        # Check for our processes
+        check_gpu_processes
+        
+        # Force cleanup
+        cleanup
+        
+        echo "GPU cleanup completed. New status:"
+        nvidia-smi --query-gpu=index,name,memory.used,memory.total,utilization.gpu --format=csv
+        ;;
     *)
         echo "Unknown action: $ACTION"
-        echo "Valid actions: info, preprocess, train, predict, all"
+        echo "Valid actions: info, preprocess, train, predict, all, cleanup"
         show_help
         exit 1
         ;;
