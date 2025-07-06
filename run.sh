@@ -11,14 +11,14 @@
 #
 
 # Default settings
-DATASET_PATH="/home/asfand/Ahmad/datasets/DFC2019_crp512_bin"
+DATASET_PATH="/home/asfand/Ahmad/datasets/Dublin"
 INPUT_TYPE="rgb"
 TARGET_TYPE="dsm"
 ACTION="train"  # Default action: train
-GPUS="1,3"        # Default: use all available GPUs
+GPUS="2,3"        # Default: use all available GPUs
 PATIENCE="20"  # Default early stopping patience
 MAX_EPOCHS="200"  # Default maximum epochs
-BATCH_SIZE="8"  # Default: use dynamic calculation
+BATCH_SIZE=""  # Default: use dynamic calculation (empty = auto)
 
 # Track background processes for cleanup
 BACKGROUND_PIDS=()
@@ -148,7 +148,7 @@ function show_help {
     echo "  -g, --gpus GPUs           Comma-separated list of GPU indices to use (e.g. '0,1')"
     echo "  -p, --patience NUMBER     Early stopping patience for training (default: $PATIENCE)"
     echo "  -e, --epochs NUMBER       Maximum training epochs (default: $MAX_EPOCHS)"
-    echo "  -b, --batch-size NUMBER   Batch size per GPU (default: dynamic calculation)"
+    echo "  -b, --batch-size NUMBER   Batch size per GPU (default: dynamic calculation based on image size)"
     echo "  --force                   Force reprocess even if NPY files exist"
     echo "  --quiet                   Suppress verbose output"
     echo ""
@@ -168,13 +168,23 @@ function show_help {
     echo "  ./run.sh --action preprocess --dataset /path/to/DFC2023Amini"
     echo "  "
     echo "  # Train on dataset (automatically uses NPY if available)"
-    echo "  ./run.sh --action train --dataset /path/to/DFC2023Amini --patience 20 --batch-size 12"
+    echo "  ./run.sh --action train --dataset /path/to/DFC2023Amini --patience 20"
+    echo "  "
+    echo "  # Train with specific batch size (useful for large images or limited GPU memory)"
+    echo "  ./run.sh --action train --dataset /path/to/DFC2023Amini --batch-size 2"
     echo "  "
     echo "  # Predict on dataset (automatically uses NPY if available)"
     echo "  ./run.sh --action predict --dataset /path/to/DFC2023Amini --weights weights/best.ckpt"
     echo "  "
     echo "  # Complete pipeline for image dataset with custom batch size"
-    echo "  ./run.sh --action all --dataset /path/to/dataset --gpus 0,1 --batch-size 16"
+    echo "  ./run.sh --action all --dataset /path/to/dataset --gpus 0,1 --batch-size 4"
+    echo ""
+    echo "MEMORY USAGE NOTES:"
+    echo "  • Batch size automatically adjusts based on image size"
+    echo "  • For large images (>256x256), use smaller batch sizes to avoid OOM errors"
+    echo "  • 500x500 images: try --batch-size 2 or 4"
+    echo "  • 1024x1024 images: try --batch-size 1"
+    echo "  • Memory usage scales quadratically with image size"
     echo ""
     echo "WORKFLOW:"
     echo "  1. info      → Check dataset format"
@@ -464,6 +474,9 @@ case $ACTION in
         if [ ! -z "$GPUS" ]; then
             echo "Using GPUs: $GPUS"
             export CUDA_VISIBLE_DEVICES="$GPUS"
+        else
+            # For prediction, ensure we have at least one GPU visible
+            echo "No specific GPUs specified for prediction, using all available"
         fi
         
         # Execute prediction command
@@ -542,6 +555,10 @@ case $ACTION in
             if [ ! -z "$GPUS" ]; then
                 echo "Using GPUs for prediction: $GPUS"
                 export CUDA_VISIBLE_DEVICES="$GPUS"
+            else
+                # For prediction, don't restrict GPU visibility to avoid device mapping issues
+                echo "Using all available GPUs for prediction"
+                unset CUDA_VISIBLE_DEVICES
             fi
             
             # Execute prediction command

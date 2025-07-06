@@ -15,6 +15,7 @@ def get_dynamic_config(image_size=(256, 256), num_gpus=1, custom_batch_size=None
     """
     Calculate appropriate batch size and worker count based on image dimensions and available GPUs.
     The original paper used a batch size of 6 for 256x256 images on a single GPU.
+    Updated with empirical data: batch size 8 works well for 512x512 images on 2 GPUs.
     
     Args:
         image_size: Tuple of (width, height) of input images
@@ -38,12 +39,29 @@ def get_dynamic_config(image_size=(256, 256), num_gpus=1, custom_batch_size=None
         # Calculate the ratio of current image size to base size
         size_ratio = (image_size[0] * image_size[1]) / BASE_SIZE
         
-        # Adjust batch size based on image dimensions (inverse relationship)
-        adjusted_batch_size = max(1, int(BASE_BATCH_SIZE / size_ratio))
+        # Simplified and more conservative batch size calculation
+        # Based on empirical data: 512x512 works with batch=8, 500x500 works with batch=6
+        # Use more conservative scaling to avoid OOM errors
         
-        # Scale with number of GPUs (conservative scaling)
+        size_ratio = (image_size[0] * image_size[1]) / BASE_SIZE
+        
+        # Very conservative approach: reduce batch size more aggressively for larger images
+        if size_ratio <= 1.0:
+            # 256x256 or smaller: use base batch size scaled by GPU count
+            adjusted_batch_size = BASE_BATCH_SIZE * num_gpus
+        elif size_ratio <= 2.0:
+            # Up to ~360x360: moderately reduce
+            adjusted_batch_size = max(2, int((BASE_BATCH_SIZE * num_gpus) * 0.8))
+        elif size_ratio <= 4.0:
+            # Up to 512x512: significantly reduce  
+            adjusted_batch_size = max(2, int((BASE_BATCH_SIZE * num_gpus) * 0.6))
+        else:
+            # Larger than 512x512: very conservative
+            adjusted_batch_size = max(1, int((BASE_BATCH_SIZE * num_gpus) * 0.4))
+        
+        # Additional safety margin for multi-GPU (they compete for memory)
         if num_gpus > 1:
-            adjusted_batch_size = max(1, int(adjusted_batch_size * (num_gpus ** 0.5)))
+            adjusted_batch_size = max(1, int(adjusted_batch_size * 0.9))
     
     # Adjust number of workers
     size_ratio = (image_size[0] * image_size[1]) / BASE_SIZE

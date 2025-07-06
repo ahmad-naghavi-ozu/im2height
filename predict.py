@@ -92,10 +92,35 @@ def run(dataset_path=None, input_files=None, output_dir="predictions", weights=N
         else:
             raise ValueError("No weights specified and none found automatically")
     
-    # Load model with correct hyperparameters
-    model = Im2Height.load_from_checkpoint(weights, in_channels=in_channels, out_channels=1)
-    if not quiet:
-        print(f"Loaded model from checkpoint: {weights}")
+    # Load model with correct hyperparameters and proper device mapping
+    # Handle GPU memory issues by trying GPU first, then falling back to CPU
+    import torch
+    device_count = torch.cuda.device_count()
+    
+    # Try GPU first, but handle OOM gracefully
+    if device_count > 0:
+        try:
+            # Clear any existing GPU cache first
+            torch.cuda.empty_cache()
+            map_location = f'cuda:0'
+            model = Im2Height.load_from_checkpoint(weights, in_channels=in_channels, out_channels=1, map_location=map_location)
+            if not quiet:
+                print(f"Loaded model from checkpoint: {weights}")
+                print(f"Mapped to device: {map_location}")
+        except (RuntimeError, torch.cuda.OutOfMemoryError) as e:
+            if not quiet:
+                print(f"GPU loading failed ({e}), falling back to CPU...")
+            map_location = 'cpu'
+            model = Im2Height.load_from_checkpoint(weights, in_channels=in_channels, out_channels=1, map_location=map_location)
+            if not quiet:
+                print(f"Loaded model from checkpoint: {weights}")
+                print(f"Mapped to device: {map_location} (fallback)")
+    else:
+        map_location = 'cpu'
+        model = Im2Height.load_from_checkpoint(weights, in_channels=in_channels, out_channels=1, map_location=map_location)
+        if not quiet:
+            print(f"Loaded model from checkpoint: {weights}")
+            print(f"Mapped to device: {map_location}")
     
     # Create output directory
     os.makedirs(output_dir, exist_ok=True)
@@ -115,9 +140,12 @@ def run(dataset_path=None, input_files=None, output_dir="predictions", weights=N
         print(f"Prediction loader: {len(prediction_loader)} batches")
     
     # Set up trainer for prediction
+    # Use the same device as the model was loaded on
+    use_gpu = str(next(model.parameters()).device).startswith('cuda')
+    
     trainer = Trainer(
-        devices=1 if torch.cuda.is_available() else 0,
-        accelerator="gpu" if torch.cuda.is_available() else "cpu",
+        devices=1 if use_gpu else 1,
+        accelerator="gpu" if use_gpu else "cpu",
         logger=False,
         enable_checkpointing=False
     )
