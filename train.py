@@ -87,7 +87,8 @@ def get_dynamic_config(image_size=(256, 256), num_gpus=1, custom_batch_size=None
 
 
 def run(dataset_path=None, input_type="rgb", target_type="dsm", max_epochs=1000, 
-        patience=200, gpu_count=None, output_dir="weights", batch_size=None, quiet=False):
+        patience=200, gpu_count=None, output_dir="weights", batch_size=None, 
+        resume_from_checkpoint=None, quiet=False):
     """
     Train the Im2Height model on any supported dataset format.
     
@@ -99,7 +100,9 @@ def run(dataset_path=None, input_type="rgb", target_type="dsm", max_epochs=1000,
         patience: Early stopping patience
         gpu_count: GPU specification (None for auto-detect, '0,1' for specific GPUs)
         output_dir: Directory to save model weights
-        batch_size: Custom batch size (None for dynamic calculation)
+        batch_size: Override dynamic batch size calculation (optional)
+        resume_from_checkpoint: Path to checkpoint file to resume from (optional)
+        quiet: Suppress verbose output
     """
     
     # Handle backward compatibility - check for old NPY structure first
@@ -239,7 +242,15 @@ def run(dataset_path=None, input_type="rgb", target_type="dsm", max_epochs=1000,
     )
     
     # Train the model
-    trainer.fit(model, train_loader, valid_loader)
+    if resume_from_checkpoint and os.path.exists(resume_from_checkpoint):
+        if not quiet:
+            print(f"Resuming training from checkpoint: {resume_from_checkpoint}")
+        trainer.fit(model, train_loader, valid_loader, ckpt_path=resume_from_checkpoint)
+    else:
+        if resume_from_checkpoint:
+            print(f"Warning: Checkpoint file not found: {resume_from_checkpoint}")
+            print("Starting training from scratch...")
+        trainer.fit(model, train_loader, valid_loader)
 
 
 if __name__ == '__main__':
@@ -260,6 +271,8 @@ if __name__ == '__main__':
                         help="GPUs to use (comma-separated indices or integer count)")
     parser.add_argument("-b", "--batch_size", type=int, default=None,
                         help="Batch size per GPU (overrides dynamic calculation)")
+    parser.add_argument("-r", "--resume_from_checkpoint", type=str, default=None,
+                        help="Path to checkpoint file to resume training from")
     parser.add_argument("--quiet", action="store_true",
                         help="Suppress verbose output")
     

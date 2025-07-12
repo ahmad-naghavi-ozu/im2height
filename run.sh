@@ -19,6 +19,7 @@ GPUS="0,2"        # Default: use all available GPUs
 PATIENCE="20"  # Default early stopping patience
 MAX_EPOCHS="200"  # Default maximum epochs
 BATCH_SIZE=""  # Default: use dynamic calculation (empty = auto)
+RESUME_CHECKPOINT=""  # Default: no checkpoint resumption
 
 # Track background processes for cleanup
 BACKGROUND_PIDS=()
@@ -149,6 +150,7 @@ function show_help {
     echo "  -p, --patience NUMBER     Early stopping patience for training (default: $PATIENCE)"
     echo "  -e, --epochs NUMBER       Maximum training epochs (default: $MAX_EPOCHS)"
     echo "  -b, --batch-size NUMBER   Batch size per GPU (default: dynamic calculation based on image size)"
+    echo "  -r, --resume PATH         Resume training from checkpoint file (e.g., weights/dataset/last.ckpt)"
     echo "  --force                   Force reprocess even if NPY files exist"
     echo "  --quiet                   Suppress verbose output"
     echo ""
@@ -172,6 +174,9 @@ function show_help {
     echo "  "
     echo "  # Train with specific batch size (useful for large images or limited GPU memory)"
     echo "  ./run.sh --action train --dataset /path/to/DFC2023Amini --batch-size 2"
+    echo "  "
+    echo "  # Resume training from last checkpoint"
+    echo "  ./run.sh --action train --dataset /path/to/DFC2023Amini --resume weights/DFC2023Amini/last.ckpt"
     echo "  "
     echo "  # Predict on dataset (automatically uses NPY if available)"
     echo "  ./run.sh --action predict --dataset /path/to/DFC2023Amini --weights weights/best.ckpt"
@@ -247,6 +252,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         -b|--batch-size)
             BATCH_SIZE="$2"
+            shift 2
+            ;;
+        -r|--resume)
+            RESUME_CHECKPOINT="$2"
             shift 2
             ;;
         --force)
@@ -392,6 +401,17 @@ case $ACTION in
             CMD="$CMD --quiet"
         fi
         
+        # Add resume checkpoint if specified
+        if [ ! -z "$RESUME_CHECKPOINT" ]; then
+            if [ -f "$RESUME_CHECKPOINT" ]; then
+                CMD="$CMD --resume_from_checkpoint \"$RESUME_CHECKPOINT\""
+                echo "Resuming training from checkpoint: $RESUME_CHECKPOINT"
+            else
+                echo "Warning: Checkpoint file not found: $RESUME_CHECKPOINT"
+                echo "Starting training from scratch..."
+            fi
+        fi
+        
         # Execute training command and capture PID
         echo "Starting training with command: $CMD"
         
@@ -520,6 +540,17 @@ case $ACTION in
         # Add quiet flag if specified
         if [ ! -z "$QUIET_FLAG" ]; then
             CMD="$CMD --quiet"
+        fi
+        
+        # Add resume checkpoint if specified
+        if [ ! -z "$RESUME_CHECKPOINT" ]; then
+            if [ -f "$RESUME_CHECKPOINT" ]; then
+                CMD="$CMD --resume_from_checkpoint \"$RESUME_CHECKPOINT\""
+                echo "Resuming training from checkpoint: $RESUME_CHECKPOINT"
+            else
+                echo "Warning: Checkpoint file not found: $RESUME_CHECKPOINT"
+                echo "Starting training from scratch..."
+            fi
         fi
         
         # Execute training command
