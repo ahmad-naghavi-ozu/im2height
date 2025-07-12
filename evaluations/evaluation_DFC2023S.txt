@@ -1,0 +1,26 @@
+IM2HEIGHT EVALUATION REPORT
+Generated: 2025-07-13 00:40:26
+Dataset: DFC2023S
+============================================================
+EVALUATION RESULTS FOR DFC2023S
+============================================================
+
+Files processed: 177/177
+
+Core Regression Metrics:
+  MSE:          82.216948
+  RMSE:         7.2101
+  MAE:          3.4802
+
+Building-Specific Metrics:
+  RMSE Building: 13.8853
+
+Height-Stratified Metrics:
+  RMSE Low-rise (1-15m):   8.5025
+  RMSE Mid-rise (15-40m):  21.7937
+  RMSE High-rise (40m+):   49.8028
+
+Delta Accuracy Metrics:
+  δ1 (< 1.25):    0.6785 (67.9%)
+  δ2 (< 1.56):    0.6792 (67.9%)
+  δ3 (< 1.95):    0.6801 (68.0%)
