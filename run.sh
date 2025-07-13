@@ -15,7 +15,7 @@ DATASET_PATH="/home/asfand/Ahmad/datasets/DFC2019_crp512_bin"
 INPUT_TYPE="rgb"
 TARGET_TYPE="dsm"
 ACTION="train"  # Default action: train
-GPUS="0,2"        # Default: use all available GPUs
+GPUS="2"        # Default: use all available GPUs
 PATIENCE="20"  # Default early stopping patience
 MAX_EPOCHS="200"  # Default maximum epochs
 BATCH_SIZE=""  # Default: use dynamic calculation (empty = auto)

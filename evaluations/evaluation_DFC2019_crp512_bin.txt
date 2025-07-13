@@ -1,5 +1,5 @@
 IM2HEIGHT EVALUATION REPORT
-Generated: 2025-07-13 14:59:27
+Generated: 2025-07-14 00:26:01
 Dataset: DFC2019_crp512_bin
 ============================================================
 EVALUATION RESULTS FOR DFC2019_CRP512_BIN
