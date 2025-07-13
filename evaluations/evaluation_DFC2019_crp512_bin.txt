@@ -1,0 +1,26 @@
+IM2HEIGHT EVALUATION REPORT
+Generated: 2025-07-13 14:59:27
+Dataset: DFC2019_crp512_bin
+============================================================
+EVALUATION RESULTS FOR DFC2019_CRP512_BIN
+============================================================
+
+Files processed: 4000/4000
+
+Core Regression Metrics:
+  MSE:          43.468254
+  RMSE:         3.6871
+  MAE:          1.9424
+
+Building-Specific Metrics:
+  RMSE Building: 7.8280
+
+Height-Stratified Metrics:
+  RMSE Low-rise (1-15m):   6.3530
+  RMSE Mid-rise (15-40m):  18.0436
+  RMSE High-rise (40m+):   61.5700
+
+Delta Accuracy Metrics:
+  δ1 (< 1.25):    0.2371 (23.7%)
+  δ2 (< 1.56):    0.2382 (23.8%)
+  δ3 (< 1.95):    0.2398 (24.0%)

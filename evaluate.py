@@ -17,8 +17,7 @@ class HeightRegressionMetrics(object):
         self.reset()
 
     def reset(self):
-       
-        
+        """Reset all metrics to initial state."""
         self.mse = 0.0
         self.rmse = 0.0
         self.abs = 0.0
@@ -37,15 +36,14 @@ class HeightRegressionMetrics(object):
         self.count_low_rise = 0
        
 
-    def add_batch(self, gt_image, pre_image, gt_mask, pred_mask):
+    def add_batch(self, gt_image, pre_image, gt_mask, pred_mask, eps=1e-5):
         assert gt_image.shape == pre_image.shape, "Shape mismatch: gt_image shape {}, pre_image shape {}".format(
             gt_image.shape, pre_image.shape)
         
         delta_gt_image = gt_image.copy()
         delta_pre_image = pre_image.copy()
-        pre_image[pre_image <= 0] = 0.00001
-        #pre_image[pre_image < 0] = 0.00001
-        gt_image[gt_image <= 0] = 0.00001
+        pre_image[pre_image <= 0] = eps
+        gt_image[gt_image <= 0] = eps
         valid_mask = ((gt_image > 0) | (pre_image > 0))
         #print("Valid Mask", valid_mask.shape)
         building_mask = np.expand_dims((gt_mask == 1), axis=0)  # Buildings are 1 in your dataset
@@ -111,9 +109,9 @@ class HeightRegressionMetrics(object):
         self.abs += abs_i
 
         # DELTA METRICS
-        delta_pre_image[delta_pre_image == 0] = 0.00001
-        delta_pre_image[delta_pre_image < 0] = 999
-        delta_gt_image[delta_gt_image <= 0] = 0.00001
+        delta_pre_image[delta_pre_image <= 0] = eps
+        # delta_pre_image[delta_pre_image < 0] = 999
+        delta_gt_image[delta_gt_image <= 0] = eps
         maxRatio = np.maximum(delta_pre_image / delta_gt_image, delta_gt_image / delta_pre_image)
         self.delta1_sum += (maxRatio < 1.25).mean()
         self.delta2_sum += (maxRatio < 1.25 ** 2).mean()
