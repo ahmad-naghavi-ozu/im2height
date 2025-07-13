@@ -140,7 +140,7 @@ function show_help {
     echo ""
     echo "Options:"
     echo "  -h, --help                Show this help message"
-    echo "  -a, --action ACTION       Action to perform: preprocess, train, predict, info, or all (default: train)"
+    echo "  -a, --action ACTION       Action to perform: preprocess, train, predict, evaluate, info, or all (default: train)"
     echo "  -d, --dataset PATH        Path to dataset (default: $DATASET_PATH)"
     echo "  -i, --input TYPE          Input data type: rgb, sar, etc. (default: $INPUT_TYPE)"
     echo "  -t, --target TYPE         Target data type: dsm, etc. (default: $TARGET_TYPE)"
@@ -159,7 +159,8 @@ function show_help {
     echo "  preprocess                Convert images to NPY format (MANDATORY for image datasets)"
     echo "  train                     Train the model (automatically uses NPY format if available)"
     echo "  predict                   Run predictions (automatically uses NPY format if available)"
-    echo "  all                       Run complete pipeline: preprocess + train + predict"
+    echo "  evaluate                  Evaluate model predictions against ground truth"
+    echo "  all                       Run complete pipeline: preprocess + train + predict + evaluate"
     echo "  cleanup                   Clean up GPU processes and memory"
     echo ""
     echo "Examples:"
@@ -181,6 +182,9 @@ function show_help {
     echo "  # Predict on dataset (automatically uses NPY if available)"
     echo "  ./run.sh --action predict --dataset /path/to/DFC2023Amini --weights weights/best.ckpt"
     echo "  "
+    echo "  # Evaluate predictions against ground truth"
+    echo "  ./run.sh --action evaluate --dataset /path/to/DFC2023Amini"
+    echo "  "
     echo "  # Complete pipeline for image dataset with custom batch size"
     echo "  ./run.sh --action all --dataset /path/to/dataset --gpus 0,1 --batch-size 4"
     echo ""
@@ -196,6 +200,7 @@ function show_help {
     echo "  2. preprocess → Convert images to NPY (if needed)"
     echo "  3. train     → Train model (auto-detects NPY format)"
     echo "  4. predict   → Generate predictions (auto-detects NPY format)"
+    echo "  5. evaluate  → Evaluate predictions against ground truth"
     echo ""
     echo "SMART PATH DETECTION:"
     echo "  • train/predict actions automatically use preprocessed NPY data when available"
@@ -353,6 +358,7 @@ check_gpu_processes() {
 check_script "preprocess.py"
 check_script "train.py"
 check_script "predict.py"
+check_script "evaluate.py"
 
 # Perform the requested action
 case $ACTION in
@@ -502,8 +508,56 @@ case $ACTION in
         # Execute prediction command
         eval $CMD
         ;;
+    evaluate)
+        echo "=== Evaluating predictions for ${DATASET_NAME} dataset ==="
+        
+        # Check if predictions exist
+        PREDICTIONS_DIR="predictions/${DATASET_NAME}"
+        if [ ! -d "$PREDICTIONS_DIR" ]; then
+            echo "Error: Predictions directory not found: $PREDICTIONS_DIR"
+            echo "Please run predictions first using: ./run.sh --action predict --dataset $DATASET_PATH"
+            exit 1
+        fi
+        
+        # Check if there are any prediction files
+        PRED_COUNT=$(find "$PREDICTIONS_DIR" -name "*.npy" | wc -l)
+        if [ "$PRED_COUNT" -eq 0 ]; then
+            echo "Error: No prediction files (.npy) found in $PREDICTIONS_DIR"
+            echo "Please run predictions first using: ./run.sh --action predict --dataset $DATASET_PATH"
+            exit 1
+        fi
+        
+        echo "Found $PRED_COUNT prediction files in $PREDICTIONS_DIR"
+        
+        # Build evaluation command
+        CMD="python evaluate.py --dataset \"$DATASET_PATH\" --predictions \"$PREDICTIONS_DIR\""
+        
+        # Add quiet flag if specified
+        if [ ! -z "$QUIET_FLAG" ]; then
+            CMD="$CMD --quiet"
+        fi
+        
+        # Set output directory for evaluation results
+        EVAL_OUTPUT_DIR="evaluations"
+        mkdir -p "$EVAL_OUTPUT_DIR"
+        CMD="$CMD --output \"$EVAL_OUTPUT_DIR/evaluation_${DATASET_NAME}.csv\""
+        
+        echo "Running evaluation with command: $CMD"
+        
+        # Execute evaluation command
+        eval $CMD
+        
+        if [ $? -eq 0 ]; then
+            echo "✅ Evaluation completed successfully"
+            echo "📊 Results saved to: $EVAL_OUTPUT_DIR/evaluation_${DATASET_NAME}.csv"
+            echo "📋 Terminal output saved to: $EVAL_OUTPUT_DIR/evaluation_${DATASET_NAME}.txt"
+        else
+            echo "❌ Evaluation failed"
+            exit 1
+        fi
+        ;;
     all)
-        echo "=== Running full pipeline: preprocess, train, predict ==="
+        echo "=== Running full pipeline: preprocess, train, predict, evaluate ==="
         
         # Step 1: Preprocess
         echo "Step 1: Preprocessing dataset..."
@@ -594,6 +648,40 @@ case $ACTION in
             
             # Execute prediction command
             eval $CMD
+            
+            if [ $? -eq 0 ]; then
+                echo "✅ Prediction completed successfully"
+                
+                # Step 4: Evaluate predictions
+                echo "Step 4: Evaluating predictions..."
+                
+                # Build evaluation command
+                EVAL_CMD="python evaluate.py --dataset \"$DATASET_PATH\" --predictions \"predictions/${DATASET_NAME}\""
+                
+                # Add quiet flag if specified
+                if [ ! -z "$QUIET_FLAG" ]; then
+                    EVAL_CMD="$EVAL_CMD --quiet"
+                fi
+                
+                # Set output directory for evaluation results
+                EVAL_OUTPUT_DIR="evaluations"
+                mkdir -p "$EVAL_OUTPUT_DIR"
+                EVAL_CMD="$EVAL_CMD --output \"$EVAL_OUTPUT_DIR/evaluation_${DATASET_NAME}.csv\""
+                
+                echo "Running evaluation with command: $EVAL_CMD"
+                
+                # Execute evaluation command
+                eval $EVAL_CMD
+                
+                if [ $? -eq 0 ]; then
+                    echo "✅ Evaluation completed successfully"
+                    echo "📊 Results saved to: $EVAL_OUTPUT_DIR/evaluation_${DATASET_NAME}.csv"
+                else
+                    echo "⚠️ Evaluation failed, but pipeline continues"
+                fi
+            else
+                echo "❌ Prediction failed, skipping evaluation"
+            fi
         fi
         ;;
     cleanup)
@@ -614,7 +702,7 @@ case $ACTION in
         ;;
     *)
         echo "Unknown action: $ACTION"
-        echo "Valid actions: info, preprocess, train, predict, all, cleanup"
+        echo "Valid actions: info, preprocess, train, predict, evaluate, all, cleanup"
         show_help
         exit 1
         ;;
