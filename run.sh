@@ -11,11 +11,11 @@
 #
 
 # Default settings
-DATASET_PATH="/home/asfand/Ahmad/datasets/DFC2019_crp512_bin"
+DATASET_PATH="/home/asfand/Ahmad/datasets/Huawei_Contest"
 INPUT_TYPE="rgb"
 TARGET_TYPE="dsm"
 ACTION="train"  # Default action: train
-GPUS="2"        # Default: use all available GPUs
+GPUS="1,2"        # Default: use all available GPUs
 PATIENCE="20"  # Default early stopping patience
 MAX_EPOCHS="200"  # Default maximum epochs
 BATCH_SIZE=""  # Default: use dynamic calculation (empty = auto)

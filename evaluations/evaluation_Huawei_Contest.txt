@@ -1,0 +1,26 @@
+IM2HEIGHT EVALUATION REPORT
+Generated: 2025-07-16 23:19:25
+Dataset: Huawei_Contest
+============================================================
+EVALUATION RESULTS FOR HUAWEI_CONTEST
+============================================================
+
+Files processed: 2633/2633
+
+Core Regression Metrics:
+  MSE:          250.325978
+  RMSE:         12.3006
+  MAE:          5.0022
+
+Building-Specific Metrics:
+  RMSE Building: 27.9755
+
+Height-Stratified Metrics:
+  RMSE Low-rise (1-15m):   8.3232
+  RMSE Mid-rise (15-40m):  20.7200
+  RMSE High-rise (40m+):   74.6309
+
+Delta Accuracy Metrics:
+  δ1 (< 1.25):    0.3849 (38.5%)
+  δ2 (< 1.56):    0.3850 (38.5%)
+  δ3 (< 1.95):    0.3850 (38.5%)
