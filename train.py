@@ -88,7 +88,7 @@ def get_dynamic_config(image_size=(256, 256), num_gpus=1, custom_batch_size=None
 
 def run(dataset_path=None, input_type="rgb", target_type="dsm", max_epochs=1000, 
         patience=200, gpu_count=None, output_dir="weights", batch_size=None, 
-        resume_from_checkpoint=None, quiet=False):
+        resume_from_checkpoint=None, learning_rate=2e-5, quiet=False):
     """
     Train the Im2Height model on any supported dataset format.
     
@@ -102,6 +102,7 @@ def run(dataset_path=None, input_type="rgb", target_type="dsm", max_epochs=1000,
         output_dir: Directory to save model weights
         batch_size: Override dynamic batch size calculation (optional)
         resume_from_checkpoint: Path to checkpoint file to resume from (optional)
+        learning_rate: Learning rate for training (default: 2e-5)
         quiet: Suppress verbose output
     """
     
@@ -172,6 +173,14 @@ def run(dataset_path=None, input_type="rgb", target_type="dsm", max_epochs=1000,
     
     # Initialize model
     model = Im2Height(in_channels=in_channels, out_channels=1)
+    
+    # Set learning rate if provided
+    if learning_rate != 2e-5:  # Only override if different from default
+        model.learning_rate = learning_rate
+        if not quiet:
+            print(f"Using custom learning rate: {learning_rate}")
+    elif not quiet:
+        print(f"Using default learning rate: 2e-5")
     
     # Set up callbacks
     early_stop = EarlyStopping(
@@ -273,6 +282,8 @@ if __name__ == '__main__':
                         help="Batch size per GPU (overrides dynamic calculation)")
     parser.add_argument("-r", "--resume_from_checkpoint", type=str, default=None,
                         help="Path to checkpoint file to resume training from")
+    parser.add_argument("-l", "--learning-rate", type=float, default=2e-5,
+                        help="Learning rate for training (default: 2e-5)")
     parser.add_argument("--quiet", action="store_true",
                         help="Suppress verbose output")
     

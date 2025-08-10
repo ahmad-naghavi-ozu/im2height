@@ -86,6 +86,9 @@ class Im2Height(LightningModule):
 		# Save number of input channels
 		self.in_channels = in_channels
 		self.out_channels = out_channels
+		
+		# Default learning rate (can be overridden)
+		self.learning_rate = 2e-5
 
 		# Convolutions
 		self.conv1 = Block(nn.Conv2d, in_channels, 64)
@@ -146,7 +149,7 @@ class Im2Height(LightningModule):
 
 	def configure_optimizers(self):
 
-		return Nadam(self.parameters(), lr=2e-5, schedule_decay=4e-3)
+		return Nadam(self.parameters(), lr=self.learning_rate, schedule_decay=4e-3)
 		#return torch.optim.SGD(self.parameters(), lr=1e-3)
 
 

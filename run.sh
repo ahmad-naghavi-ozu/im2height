@@ -11,15 +11,16 @@
 #
 
 # Default settings
-DATASET_PATH="/home/asfand/Ahmad/datasets/Huawei_Contest"
+DATASET_PATH="/home/asfand/Ahmad/datasets/DFC2019_crp512_bin"
 INPUT_TYPE="rgb"
 TARGET_TYPE="dsm"
 ACTION="train"  # Default action: train
-GPUS="1,2"        # Default: use all available GPUs
+GPUS="0,1"        # Default: use all available GPUs
 PATIENCE="20"  # Default early stopping patience
 MAX_EPOCHS="200"  # Default maximum epochs
 BATCH_SIZE=""  # Default: use dynamic calculation (empty = auto)
 RESUME_CHECKPOINT=""  # Default: no checkpoint resumption
+LEARNING_RATE="2e-5"  # Default learning rate
 
 # Track background processes for cleanup
 BACKGROUND_PIDS=()
@@ -151,6 +152,7 @@ function show_help {
     echo "  -e, --epochs NUMBER       Maximum training epochs (default: $MAX_EPOCHS)"
     echo "  -b, --batch-size NUMBER   Batch size per GPU (default: dynamic calculation based on image size)"
     echo "  -r, --resume PATH         Resume training from checkpoint file (e.g., weights/dataset/last.ckpt)"
+    echo "  -l, --learning-rate RATE  Learning rate for training (default: $LEARNING_RATE)"
     echo "  --force                   Force reprocess even if NPY files exist"
     echo "  --quiet                   Suppress verbose output"
     echo ""
@@ -175,6 +177,9 @@ function show_help {
     echo "  "
     echo "  # Train with specific batch size (useful for large images or limited GPU memory)"
     echo "  ./run.sh --action train --dataset /path/to/DFC2023Amini --batch-size 2"
+    echo "  "
+    echo "  # Train with custom learning rate"
+    echo "  ./run.sh --action train --dataset /path/to/DFC2023Amini --learning-rate 1e-4"
     echo "  "
     echo "  # Resume training from last checkpoint"
     echo "  ./run.sh --action train --dataset /path/to/DFC2023Amini --resume weights/DFC2023Amini/last.ckpt"
@@ -261,6 +266,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         -r|--resume)
             RESUME_CHECKPOINT="$2"
+            shift 2
+            ;;
+        -l|--learning-rate)
+            LEARNING_RATE="$2"
             shift 2
             ;;
         --force)
@@ -390,16 +399,21 @@ case $ACTION in
         python -c "import torch; torch.cuda.empty_cache()" 2>/dev/null || true
         
         # Build training command
-        CMD="python train.py --dataset_path \"$TRAINING_DATASET_PATH\" --input_type \"$INPUT_TYPE\" --target_type \"$TARGET_TYPE\" --max_epochs \"$MAX_EPOCHS\" --patience \"$PATIENCE\" --output_dir \"weights/${DATASET_NAME}\""
+        CMD="python train.py --dataset_path $TRAINING_DATASET_PATH --input_type $INPUT_TYPE --target_type $TARGET_TYPE --max_epochs $MAX_EPOCHS --patience $PATIENCE --output_dir weights/${DATASET_NAME}"
         
         # Add batch size if specified
         if [ ! -z "$BATCH_SIZE" ]; then
-            CMD="$CMD --batch_size \"$BATCH_SIZE\""
+            CMD="$CMD --batch_size $BATCH_SIZE"
+        fi
+        
+        # Add learning rate if specified and different from default
+        if [ ! -z "$LEARNING_RATE" ] && [ "$LEARNING_RATE" != "2e-5" ]; then
+            CMD="$CMD --learning-rate $LEARNING_RATE"
         fi
         
         # Add GPU specification if provided
         if [ ! -z "$GPUS" ]; then
-            CMD="$CMD --gpu_count \"$GPUS\""
+            CMD="$CMD --gpu_count $GPUS"
         fi
         
         # Add quiet flag if specified
@@ -410,7 +424,7 @@ case $ACTION in
         # Add resume checkpoint if specified
         if [ ! -z "$RESUME_CHECKPOINT" ]; then
             if [ -f "$RESUME_CHECKPOINT" ]; then
-                CMD="$CMD --resume_from_checkpoint \"$RESUME_CHECKPOINT\""
+                CMD="$CMD --resume_from_checkpoint $RESUME_CHECKPOINT"
                 echo "Resuming training from checkpoint: $RESUME_CHECKPOINT"
             else
                 echo "Warning: Checkpoint file not found: $RESUME_CHECKPOINT"
@@ -489,7 +503,7 @@ case $ACTION in
         echo "=== Running predictions on ${DATASET_NAME} dataset ==="
         
         # Build prediction command
-        CMD="python predict.py --dataset_path \"$PREDICTION_DATASET_PATH\" --output_dir \"$OUTPUT_DIR\" --weights \"$WEIGHTS\" --input_type \"$INPUT_TYPE\""
+        CMD="python predict.py --dataset_path $PREDICTION_DATASET_PATH --output_dir $OUTPUT_DIR --weights $WEIGHTS --input_type $INPUT_TYPE"
         
         # Add quiet flag if specified
         if [ ! -z "$QUIET_FLAG" ]; then
@@ -579,16 +593,21 @@ case $ACTION in
         export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True  # Avoid memory fragmentation
         
         # Build training command
-        CMD="python train.py --dataset_path \"$NPY_DATASET_PATH\" --input_type \"$INPUT_TYPE\" --target_type \"$TARGET_TYPE\" --max_epochs \"$MAX_EPOCHS\" --patience \"$PATIENCE\" --output_dir \"weights/${DATASET_NAME}\""
+        CMD="python train.py --dataset_path $NPY_DATASET_PATH --input_type $INPUT_TYPE --target_type $TARGET_TYPE --max_epochs $MAX_EPOCHS --patience $PATIENCE --output_dir weights/${DATASET_NAME}"
         
         # Add batch size if specified
         if [ ! -z "$BATCH_SIZE" ]; then
-            CMD="$CMD --batch_size \"$BATCH_SIZE\""
+            CMD="$CMD --batch_size $BATCH_SIZE"
+        fi
+        
+        # Add learning rate if specified and different from default
+        if [ ! -z "$LEARNING_RATE" ] && [ "$LEARNING_RATE" != "2e-5" ]; then
+            CMD="$CMD --learning-rate $LEARNING_RATE"
         fi
         
         # Add GPU specification if provided
         if [ ! -z "$GPUS" ]; then
-            CMD="$CMD --gpu_count \"$GPUS\""
+            CMD="$CMD --gpu_count $GPUS"
         fi
         
         # Add quiet flag if specified
@@ -599,7 +618,7 @@ case $ACTION in
         # Add resume checkpoint if specified
         if [ ! -z "$RESUME_CHECKPOINT" ]; then
             if [ -f "$RESUME_CHECKPOINT" ]; then
-                CMD="$CMD --resume_from_checkpoint \"$RESUME_CHECKPOINT\""
+                CMD="$CMD --resume_from_checkpoint $RESUME_CHECKPOINT"
                 echo "Resuming training from checkpoint: $RESUME_CHECKPOINT"
             else
                 echo "Warning: Checkpoint file not found: $RESUME_CHECKPOINT"
@@ -629,7 +648,7 @@ case $ACTION in
             echo "Using model weights: $BEST_WEIGHTS"
             
             # Build prediction command
-            CMD="python predict.py --dataset_path \"$NPY_DATASET_PATH\" --output_dir \"predictions/${DATASET_NAME}\" --weights \"$BEST_WEIGHTS\" --input_type \"$INPUT_TYPE\""
+            CMD="python predict.py --dataset_path $NPY_DATASET_PATH --output_dir predictions/${DATASET_NAME} --weights $BEST_WEIGHTS --input_type $INPUT_TYPE"
             
             # Add quiet flag if specified
             if [ ! -z "$QUIET_FLAG" ]; then
