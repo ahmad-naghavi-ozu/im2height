@@ -116,7 +116,7 @@ This will show:
 ## 🎯 Enhanced Features
 
 ### **Multi-Dataset Support**
-- **DFC2023Amini**: Street View imagery dataset
+- **DFC2023mini**: Street View imagery dataset
 - **DFC2023S**: Satellite imagery dataset  
 - **Custom datasets**: Any image format with corresponding height maps
 - **Legacy NPY**: Original Im2Height format

@@ -268,7 +268,7 @@ def main():
         epilog="""
 Examples:
   # Preprocess DFC2023 dataset
-  python preprocess.py -d /path/to/DFC2023Amini
+  python preprocess.py -d /path/to/DFC2023mini
   
   # Preprocess with SAR input instead of RGB
   python preprocess.py -d /path/to/dataset -i sar
