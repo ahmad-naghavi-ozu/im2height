@@ -224,8 +224,6 @@ def get_dataset_info(dataset_path):
     info = {
         'dataset_name': dataset_name,
         'dataset_path': dataset_path,
-        'input_type': 'rgb',
-        'target_type': 'dsm',
         'splits': {}
     }
     
@@ -301,8 +299,8 @@ Examples:
         print(f"Dataset Information:")
         print(f"  Name: {info['dataset_name']}")
         print(f"  Path: {info['dataset_path']}")
-        print(f"  Input Type: {info['input_type']} (RGB optical imagery)")
-        print(f"  Target Type: {info['target_type']} (Digital Surface Model)")
+        print(f"  Input Type: rgb (RGB optical imagery)")
+        print(f"  Target Type: dsm (Digital Surface Model)")
         print(f"  Available Splits:")
         
         for split, split_info in info['splits'].items():

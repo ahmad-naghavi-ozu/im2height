@@ -129,22 +129,16 @@ class Dataset(torch.utils.data.Dataset):
 	to run preprocessing first.
 	'''
 	
-	def __init__(self, dataset_path, split='train', input_type='rgb', target_type='dsm'):
+	def __init__(self, dataset_path, split='train'):
 		"""
-		Initialize dataset with automatic format detection.
+		Initialize dataset for RGB to DSM conversion (NPY format only).
 		
-		:param dataset_path: (str) path to dataset - can be:
-			- NPY format: path containing train/x, train/y, test/x, test/y directories
-			- Image format: path containing train/rgb, train/dsm directories
+		:param dataset_path: (str) path to dataset - NPY format with train/x, train/y directories
 		:param split: (str) 'train', 'valid', or 'test'
-		:param input_type: (str) input modality (fixed to 'rgb' for RGB optical imagery)
-		:param target_type: (str) target modality (fixed to 'dsm' for Digital Surface Model)
 		"""
 		
 		self.dataset_path = dataset_path
 		self.split = split
-		self.input_type = input_type
-		self.target_type = target_type
 		self.dataset_format = self._detect_format()
 		
 		# Initialize based on detected format
@@ -174,8 +168,8 @@ class Dataset(torch.utils.data.Dataset):
 			return 'npy'
 		
 		# Check for image format: look for rgb and dsm subdirectories
-		img_input_path = os.path.join(self.dataset_path, self.split, self.input_type)
-		img_target_path = os.path.join(self.dataset_path, self.split, self.target_type)
+		img_input_path = os.path.join(self.dataset_path, self.split, 'rgb')
+		img_target_path = os.path.join(self.dataset_path, self.split, 'dsm')
 		
 		if os.path.exists(img_input_path) and os.path.exists(img_target_path):
 			# Image format detected - this is not supported for training/prediction
@@ -267,13 +261,12 @@ class PredictionDataset(torch.utils.data.Dataset):
 	Image format datasets must be preprocessed to NPY first.
 	'''
 	
-	def __init__(self, dataset_path, split='test', input_type='rgb'):
+	def __init__(self, dataset_path, split='test'):
 		"""
-		Initialize prediction dataset (NPY format only).
+		Initialize prediction dataset for RGB to DSM conversion (NPY format only).
 		
 		:param dataset_path: (str) path to dataset or list of files
 		:param split: (str) dataset split ('test', 'valid', etc.)
-		:param input_type: (str) input modality (fixed to 'rgb' - triggers error for image format)
 		"""
 		
 		# Handle both directory paths and file lists
@@ -294,7 +287,6 @@ class PredictionDataset(torch.utils.data.Dataset):
 			# Directory path provided
 			self.dataset_path = dataset_path
 			self.split = split
-			self.input_type = input_type
 			self.dataset_format = self._detect_format()
 			self._init_file_list()
 	
@@ -306,7 +298,7 @@ class PredictionDataset(torch.utils.data.Dataset):
 			return 'npy'
 		
 		# Check for image format - this is not supported
-		img_input_path = os.path.join(self.dataset_path, self.split, self.input_type)
+		img_input_path = os.path.join(self.dataset_path, self.split, 'rgb')
 		if os.path.exists(img_input_path):
 			raise ValueError(
 				f"\n❌ ERROR: Image format dataset detected for prediction, but only NPY format is supported.\n"
