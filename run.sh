@@ -1,8 +1,8 @@
 #!/bin/bash
 #
-# Run script for Im2Height model that supports multiple dataset formats.
+# Run script for Im2Height model for RGB to DSM height estimation.
 #
-# This script can handle:
+# This script handles RGB optical imagery input and DSM (Digital Surface Model) output:
 # 1. Legacy NPY datasets (original paper format)
 # 2. Image datasets (DFC2023 and similar formats)
 # 3. Automatic format detection and configuration
@@ -12,8 +12,6 @@
 
 # Default settings
 DATASET_PATH="/home/asfand/Ahmad/datasets/DFC2019_crp512_bin"
-INPUT_TYPE="rgb"
-TARGET_TYPE="dsm"
 ACTION="train"  # Default action: train
 GPUS="0,1"        # Default: use all available GPUs
 PATIENCE="20"  # Default early stopping patience
@@ -134,7 +132,9 @@ function show_help {
     echo "⚠️  IMPORTANT: Im2Height ONLY works with NPY format for training/prediction!"
     echo "   If your dataset contains images, you MUST run preprocessing first."
     echo ""
-    echo "Im2Height runner supporting multiple dataset formats:"
+    echo "Im2Height runner for RGB to DSM height estimation:"
+    echo "  - Input: RGB optical imagery (fixed)"
+    echo "  - Output: DSM (Digital Surface Model) height maps (fixed)"
     echo "  - Legacy NPY format (original paper) - ready for training"
     echo "  - Image format (DFC2023, custom datasets) - requires preprocessing first"
     echo "  - Automatic format detection and configuration"
@@ -143,8 +143,6 @@ function show_help {
     echo "  -h, --help                Show this help message"
     echo "  -a, --action ACTION       Action to perform: preprocess, train, predict, evaluate, info, or all (default: train)"
     echo "  -d, --dataset PATH        Path to dataset (default: $DATASET_PATH)"
-    echo "  -i, --input TYPE          Input data type: rgb, sar, etc. (default: $INPUT_TYPE)"
-    echo "  -t, --target TYPE         Target data type: dsm, etc. (default: $TARGET_TYPE)"
     echo "  -w, --weights PATH        Path to model weights (for prediction only)"
     echo "  -o, --output DIR          Output directory (for prediction only)"
     echo "  -g, --gpus GPUs           Comma-separated list of GPU indices to use (e.g. '0,1')"
@@ -202,10 +200,10 @@ function show_help {
     echo ""
     echo "WORKFLOW:"
     echo "  1. info      → Check dataset format"
-    echo "  2. preprocess → Convert images to NPY (if needed)"
-    echo "  3. train     → Train model (auto-detects NPY format)"
-    echo "  4. predict   → Generate predictions (auto-detects NPY format)"
-    echo "  5. evaluate  → Evaluate predictions against ground truth"
+    echo "  2. preprocess → Convert RGB images to NPY (if needed)"
+    echo "  3. train     → Train RGB-to-DSM model (auto-detects NPY format)"
+    echo "  4. predict   → Generate DSM predictions (auto-detects NPY format)"
+    echo "  5. evaluate  → Evaluate DSM predictions against ground truth"
     echo ""
     echo "SMART PATH DETECTION:"
     echo "  • train/predict actions automatically use preprocessed NPY data when available"
@@ -230,14 +228,6 @@ while [[ $# -gt 0 ]]; do
             ;;
         -d|--dataset)
             DATASET_PATH="$2"
-            shift 2
-            ;;
-        -i|--input)
-            INPUT_TYPE="$2"
-            shift 2
-            ;;
-        -t|--target)
-            TARGET_TYPE="$2"
             shift 2
             ;;
         -w|--weights)
@@ -373,11 +363,11 @@ check_script "evaluate.py"
 case $ACTION in
     info)
         echo "=== Dataset Information ==="
-        python preprocess.py --dataset_path "$DATASET_PATH" --input_type "$INPUT_TYPE" --target_type "$TARGET_TYPE" --info-only $QUIET_FLAG
+        python preprocess.py --dataset_path "$DATASET_PATH" --info-only $QUIET_FLAG
         ;;
     preprocess)
         echo "=== Preprocessing ${DATASET_NAME} dataset ==="
-        python preprocess.py --dataset_path "$DATASET_PATH" --input_type "$INPUT_TYPE" --target_type "$TARGET_TYPE" $FORCE_FLAG $QUIET_FLAG
+        python preprocess.py --dataset_path "$DATASET_PATH" $FORCE_FLAG $QUIET_FLAG
         ;;
     train)
         echo "=== Training Im2Height model on ${DATASET_NAME} dataset ==="
@@ -399,7 +389,7 @@ case $ACTION in
         python -c "import torch; torch.cuda.empty_cache()" 2>/dev/null || true
         
         # Build training command
-        CMD="python train.py --dataset_path $TRAINING_DATASET_PATH --input_type $INPUT_TYPE --target_type $TARGET_TYPE --max_epochs $MAX_EPOCHS --patience $PATIENCE --output_dir weights/${DATASET_NAME}"
+        CMD="python train.py --dataset_path $TRAINING_DATASET_PATH --max_epochs $MAX_EPOCHS --patience $PATIENCE --output_dir weights/${DATASET_NAME}"
         
         # Add batch size if specified
         if [ ! -z "$BATCH_SIZE" ]; then
@@ -503,7 +493,7 @@ case $ACTION in
         echo "=== Running predictions on ${DATASET_NAME} dataset ==="
         
         # Build prediction command
-        CMD="python predict.py --dataset_path $PREDICTION_DATASET_PATH --output_dir $OUTPUT_DIR --weights $WEIGHTS --input_type $INPUT_TYPE"
+        CMD="python predict.py --dataset_path $PREDICTION_DATASET_PATH --output_dir $OUTPUT_DIR --weights $WEIGHTS"
         
         # Add quiet flag if specified
         if [ ! -z "$QUIET_FLAG" ]; then
@@ -575,7 +565,7 @@ case $ACTION in
         
         # Step 1: Preprocess
         echo "Step 1: Preprocessing dataset..."
-        python preprocess.py --dataset_path "$DATASET_PATH" --input_type "$INPUT_TYPE" --target_type "$TARGET_TYPE" $FORCE_FLAG $QUIET_FLAG
+        python preprocess.py --dataset_path "$DATASET_PATH" $FORCE_FLAG $QUIET_FLAG
         
         if [ $? -ne 0 ]; then
             echo "Error during preprocessing. Aborting pipeline."
@@ -593,7 +583,7 @@ case $ACTION in
         export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True  # Avoid memory fragmentation
         
         # Build training command
-        CMD="python train.py --dataset_path $NPY_DATASET_PATH --input_type $INPUT_TYPE --target_type $TARGET_TYPE --max_epochs $MAX_EPOCHS --patience $PATIENCE --output_dir weights/${DATASET_NAME}"
+        CMD="python train.py --dataset_path $NPY_DATASET_PATH --max_epochs $MAX_EPOCHS --patience $PATIENCE --output_dir weights/${DATASET_NAME}"
         
         # Add batch size if specified
         if [ ! -z "$BATCH_SIZE" ]; then
@@ -648,7 +638,7 @@ case $ACTION in
             echo "Using model weights: $BEST_WEIGHTS"
             
             # Build prediction command
-            CMD="python predict.py --dataset_path $NPY_DATASET_PATH --output_dir predictions/${DATASET_NAME} --weights $BEST_WEIGHTS --input_type $INPUT_TYPE"
+            CMD="python predict.py --dataset_path $NPY_DATASET_PATH --output_dir predictions/${DATASET_NAME} --weights $BEST_WEIGHTS"
             
             # Add quiet flag if specified
             if [ ! -z "$QUIET_FLAG" ]; then

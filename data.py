@@ -135,10 +135,10 @@ class Dataset(torch.utils.data.Dataset):
 		
 		:param dataset_path: (str) path to dataset - can be:
 			- NPY format: path containing train/x, train/y, test/x, test/y directories
-			- Image format: path containing train/rgb, train/dsm, etc. directories
+			- Image format: path containing train/rgb, train/dsm directories
 		:param split: (str) 'train', 'valid', or 'test'
-		:param input_type: (str) input modality ('rgb', 'sar', etc.) - only used for image format
-		:param target_type: (str) target modality ('dsm', etc.) - only used for image format
+		:param input_type: (str) input modality (fixed to 'rgb' for RGB optical imagery)
+		:param target_type: (str) target modality (fixed to 'dsm' for Digital Surface Model)
 		"""
 		
 		self.dataset_path = dataset_path
@@ -173,7 +173,7 @@ class Dataset(torch.utils.data.Dataset):
 		if os.path.exists(npy_x_path) and os.path.exists(npy_y_path):
 			return 'npy'
 		
-		# Check for image format: look for input_type and target_type subdirectories
+		# Check for image format: look for rgb and dsm subdirectories
 		img_input_path = os.path.join(self.dataset_path, self.split, self.input_type)
 		img_target_path = os.path.join(self.dataset_path, self.split, self.target_type)
 		
@@ -273,7 +273,7 @@ class PredictionDataset(torch.utils.data.Dataset):
 		
 		:param dataset_path: (str) path to dataset or list of files
 		:param split: (str) dataset split ('test', 'valid', etc.)
-		:param input_type: (str) input modality for detecting image format (triggers error)
+		:param input_type: (str) input modality (fixed to 'rgb' - triggers error for image format)
 		"""
 		
 		# Handle both directory paths and file lists

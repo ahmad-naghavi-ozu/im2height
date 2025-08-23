@@ -1,13 +1,12 @@
 #!/usr/bin/env python
 """
-Preprocessing script for Im2Height model that handles multiple dataset formats.
+Preprocessing script for Im2Height RGB to DSM conversion.
 
 This script can:
-1. Convert image datasets to NPY format for faster loading
+1. Convert RGB image datasets to NPY format for faster loading
 2. Handle already processed NPY datasets (no-op)
-3. Support various input types (rgb, sar, etc.) and target types (dsm, etc.)
-4. Auto-detect dataset format and structure
-5. Maintain backward compatibility with legacy NPY structure
+3. Auto-detect dataset format and structure
+4. Maintain backward compatibility with legacy NPY structure
 """
 
 import os
@@ -17,14 +16,16 @@ from PIL import Image
 from tqdm import tqdm
 
 
-def detect_dataset_format(dataset_path, split='train', input_type='rgb', target_type='dsm'):
+def detect_dataset_format(dataset_path, split='train'):
     """
-    Detect if dataset is in NPY format or image format.
+    Detect if dataset is in NPY format or image format for RGB to DSM conversion.
     
     Returns:
         'npy': Dataset already in NPY format (data/<dataset>/train/x, data/<dataset>/train/y)
-        'image': Dataset in image format (dataset/train/rgb, dataset/train/dsm)
+        'image': Dataset is in image format (dataset/train/rgb, dataset/train/dsm)
+        'unknown': Dataset format not recognized
     """
+    
     # Check for NPY format first (processed format)
     dataset_name = os.path.basename(os.path.normpath(dataset_path))
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -38,8 +39,8 @@ def detect_dataset_format(dataset_path, split='train', input_type='rgb', target_
             return 'npy'
     
     # Check for image format (raw format)
-    image_input_dir = os.path.join(dataset_path, split, input_type)
-    image_target_dir = os.path.join(dataset_path, split, target_type)
+    image_input_dir = os.path.join(dataset_path, split, 'rgb')
+    image_target_dir = os.path.join(dataset_path, split, 'dsm')
     
     if (os.path.exists(image_input_dir) and os.path.exists(image_target_dir)):
         input_files = [f for f in os.listdir(image_input_dir) 
@@ -52,19 +53,17 @@ def detect_dataset_format(dataset_path, split='train', input_type='rgb', target_
     return 'unknown'
 
 
-def preprocess_dataset(dataset_path, output_path=None, input_type="rgb", target_type="dsm", 
-                      force_reprocess=False, verbose=True):
+def preprocess_dataset(dataset_path, output_path=None, force_reprocess=False, verbose=True):
     """
-    Comprehensive preprocessing function that handles both image and NPY datasets.
+    Comprehensive preprocessing function for RGB to DSM datasets.
     
     Args:
         dataset_path: Path to the dataset
         output_path: Path to save the processed .npy files. If None, uses default location
-        input_type: Input data type ('rgb', 'sar', etc.)
-        target_type: Target data type ('dsm', etc.)
         force_reprocess: If True, reprocess even if NPY files already exist
         verbose: If True, print detailed progress information
     """
+    
     # Extract dataset name from the path
     dataset_name = os.path.basename(os.path.normpath(dataset_path))
     
@@ -77,19 +76,19 @@ def preprocess_dataset(dataset_path, output_path=None, input_type="rgb", target_
     # Check available splits
     splits = []
     for split in ['train', 'valid', 'test']:
-        split_format = detect_dataset_format(dataset_path, split, input_type, target_type)
+        split_format = detect_dataset_format(dataset_path, split)
         if split_format != 'unknown':
             splits.append((split, split_format))
     
     if not splits:
         print(f"Error: No valid dataset splits found in {dataset_path}")
-        print(f"Expected structure: {dataset_path}/[train|valid|test]/{input_type}/")
-        print(f"                    {dataset_path}/[train|valid|test]/{target_type}/")
+        print(f"Expected structure: {dataset_path}/[train|valid|test]/rgb/")
+        print(f"                    {dataset_path}/[train|valid|test]/dsm/")
         return False
     
     if verbose:
         print(f"Dataset: {dataset_name}")
-        print(f"Input type: {input_type}, Target type: {target_type}")
+        print(f"Input type: rgb, Target type: dsm")
         print(f"Found splits: {[f'{split} ({fmt})' for split, fmt in splits]}")
     
     for split, split_format in splits:
@@ -113,8 +112,8 @@ def preprocess_dataset(dataset_path, output_path=None, input_type="rgb", target_
         os.makedirs(target_output_dir, exist_ok=True)
         
         # Source directories
-        input_dir = os.path.join(dataset_path, split, input_type)
-        target_dir = os.path.join(dataset_path, split, target_type)
+        input_dir = os.path.join(dataset_path, split, 'rgb')
+        target_dir = os.path.join(dataset_path, split, 'dsm')
         
         # Get input and target files
         input_files = sorted([f for f in os.listdir(input_dir) 
@@ -127,7 +126,7 @@ def preprocess_dataset(dataset_path, output_path=None, input_type="rgb", target_
         
         # Process input files
         processed_count = 0
-        for file_name in tqdm(input_files, desc=f"Converting {input_type} to npy", disable=not verbose):
+        for file_name in tqdm(input_files, desc=f"Converting rgb to npy", disable=not verbose):
             input_path = os.path.join(input_dir, file_name)
             output_npy_path = os.path.join(input_output_dir, f"{os.path.splitext(file_name)[0]}.npy")
             
@@ -143,7 +142,7 @@ def preprocess_dataset(dataset_path, output_path=None, input_type="rgb", target_
             np.save(output_npy_path, img)
         
         # Process target files
-        for file_name in tqdm(target_files, desc=f"Converting {target_type} to npy", disable=not verbose):
+        for file_name in tqdm(target_files, desc=f"Converting dsm to npy", disable=not verbose):
             target_path = os.path.join(target_dir, file_name)
             output_npy_path = os.path.join(target_output_dir, f"{os.path.splitext(file_name)[0]}.npy")
             
@@ -217,21 +216,21 @@ def load_and_convert_image(file_path):
     return img
 
 
-def get_dataset_info(dataset_path, input_type="rgb", target_type="dsm"):
+def get_dataset_info(dataset_path):
     """
-    Get information about the dataset structure and format.
+    Get information about the dataset structure and format for RGB to DSM conversion.
     """
     dataset_name = os.path.basename(os.path.normpath(dataset_path))
     info = {
         'dataset_name': dataset_name,
         'dataset_path': dataset_path,
-        'input_type': input_type,
-        'target_type': target_type,
+        'input_type': 'rgb',
+        'target_type': 'dsm',
         'splits': {}
     }
     
     for split in ['train', 'valid', 'test']:
-        split_format = detect_dataset_format(dataset_path, split, input_type, target_type)
+        split_format = detect_dataset_format(dataset_path, split)
         if split_format != 'unknown':
             if split_format == 'npy':
                 # Count NPY files
@@ -246,8 +245,8 @@ def get_dataset_info(dataset_path, input_type="rgb", target_type="dsm"):
                 }
             else:
                 # Count image files
-                input_dir = os.path.join(dataset_path, split, input_type)
-                target_dir = os.path.join(dataset_path, split, target_type)
+                input_dir = os.path.join(dataset_path, split, 'rgb')
+                target_dir = os.path.join(dataset_path, split, 'dsm')
                 input_files = len([f for f in os.listdir(input_dir) 
                                  if os.path.isfile(os.path.join(input_dir, f))])
                 target_files = len([f for f in os.listdir(target_dir) 
@@ -263,15 +262,12 @@ def get_dataset_info(dataset_path, input_type="rgb", target_type="dsm"):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Preprocessing script for Im2Height model",
+        description="Preprocessing script for Im2Height RGB to DSM conversion",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Preprocess DFC2023 dataset
+  # Preprocess DFC2023 dataset (RGB to DSM)
   python preprocess.py -d /path/to/DFC2023mini
-  
-  # Preprocess with SAR input instead of RGB
-  python preprocess.py -d /path/to/dataset -i sar
   
   # Force reprocess existing NPY files
   python preprocess.py -d /path/to/dataset --force
@@ -284,10 +280,6 @@ Examples:
                         help="Path to the dataset")
     parser.add_argument("-o", "--output_path", type=str, default=None,
                         help="Path to save the processed .npy files (defaults to 'data/<dataset_name>' in project root)")
-    parser.add_argument("-i", "--input_type", type=str, default="rgb",
-                        help="Input data type (default: rgb)")
-    parser.add_argument("-t", "--target_type", type=str, default="dsm",
-                        help="Target data type (default: dsm)")
     parser.add_argument("--force", action="store_true",
                         help="Force reprocess even if NPY files already exist")
     parser.add_argument("--info-only", action="store_true",
@@ -303,14 +295,14 @@ Examples:
         return 1
     
     # Get and display dataset information
-    info = get_dataset_info(args.dataset_path, args.input_type, args.target_type)
+    info = get_dataset_info(args.dataset_path)
     
     if not args.quiet:
         print(f"Dataset Information:")
         print(f"  Name: {info['dataset_name']}")
         print(f"  Path: {info['dataset_path']}")
-        print(f"  Input Type: {info['input_type']}")
-        print(f"  Target Type: {info['target_type']}")
+        print(f"  Input Type: {info['input_type']} (RGB optical imagery)")
+        print(f"  Target Type: {info['target_type']} (Digital Surface Model)")
         print(f"  Available Splits:")
         
         for split, split_info in info['splits'].items():
@@ -320,8 +312,8 @@ Examples:
     
     if not info['splits']:
         print(f"Error: No valid dataset splits found!")
-        print(f"Expected structure: {args.dataset_path}/[train|valid|test]/{args.input_type}/")
-        print(f"                    {args.dataset_path}/[train|valid|test]/{args.target_type}/")
+        print(f"Expected structure: {args.dataset_path}/[train|valid|test]/rgb/")
+        print(f"                    {args.dataset_path}/[train|valid|test]/dsm/")
         return 1
     
     if args.info_only:
@@ -331,8 +323,6 @@ Examples:
     success = preprocess_dataset(
         dataset_path=args.dataset_path,
         output_path=args.output_path,
-        input_type=args.input_type,
-        target_type=args.target_type,
         force_reprocess=args.force,
         verbose=not args.quiet
     )

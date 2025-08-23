@@ -86,16 +86,14 @@ def get_dynamic_config(image_size=(256, 256), num_gpus=1, custom_batch_size=None
     }
 
 
-def run(dataset_path=None, input_type="rgb", target_type="dsm", max_epochs=1000, 
+def run(dataset_path=None, max_epochs=1000, 
         patience=200, gpu_count=None, output_dir="weights", batch_size=None, 
         resume_from_checkpoint=None, learning_rate=2e-5, quiet=False):
     """
-    Train the Im2Height model on any supported dataset format.
+    Train the Im2Height model for RGB to DSM height estimation.
     
     Args:
         dataset_path: Path to dataset (auto-detects NPY or image format)
-        input_type: Input data type ('rgb', 'sar', etc.) - for image format datasets
-        target_type: Target data type ('dsm', etc.) - for image format datasets  
         max_epochs: Maximum number of training epochs
         patience: Early stopping patience
         gpu_count: GPU specification (None for auto-detect, '0,1' for specific GPUs)
@@ -119,17 +117,17 @@ def run(dataset_path=None, input_type="rgb", target_type="dsm", max_epochs=1000,
     # Create output directory
     os.makedirs(output_dir, exist_ok=True)
     
-    # Initialize datasets using dataset class
-    train_dataset = Dataset(dataset_path, 'train', input_type, target_type)
+    # Initialize datasets using dataset class - uses RGB input and DSM target by default
+    train_dataset = Dataset(dataset_path, 'train')
     
     # Try to find validation data, fall back to test if not available
     try:
-        valid_dataset = Dataset(dataset_path, 'valid', input_type, target_type)
+        valid_dataset = Dataset(dataset_path, 'valid')
         if not quiet:
             print("Using validation dataset")
     except:
         try:
-            valid_dataset = Dataset(dataset_path, 'test', input_type, target_type)
+            valid_dataset = Dataset(dataset_path, 'test')
             if not quiet:
                 print("Using test dataset for validation")
         except:
@@ -268,10 +266,6 @@ if __name__ == '__main__':
                         help="Path to dataset (auto-detects NPY or image format)")
     parser.add_argument("-o", "--output_dir", type=str, default="weights",
                         help="Directory to save model weights")
-    parser.add_argument("-i", "--input_type", type=str, default="rgb",
-                        help="Input data type (for image format datasets)")
-    parser.add_argument("-t", "--target_type", type=str, default="dsm",
-                        help="Target data type (for image format datasets)")
     parser.add_argument("-e", "--max_epochs", type=int, default=1000,
                         help="Maximum number of training epochs")
     parser.add_argument("-p", "--patience", type=int, default=200,

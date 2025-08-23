@@ -154,8 +154,6 @@ Actions:
 
 Options:
   -d, --dataset PATH        Path to dataset
-  -i, --input TYPE          Input data type: rgb, sar, etc. (default: rgb)
-  -t, --target TYPE         Target data type: dsm, etc. (default: dsm)
   -g, --gpus GPUs           GPU indices to use (e.g. '0,1')
   -p, --patience NUMBER     Early stopping patience (default: 200)
   -e, --epochs NUMBER       Maximum training epochs (default: 1000)
@@ -172,7 +170,7 @@ Based on the original Im2Height paper ([arXiv:1802.10249](https://arxiv.org/abs/
 - **Fully residual** convolutional-deconvolutional network
 - **Skip connections** for preserving fine details and boundaries  
 - **End-to-end training** without post-processing
-- **Multi-channel support** (RGB, SAR, etc.)
+- **RGB to DSM conversion** specialized for height estimation
 
 ## 🔍 Troubleshooting
 

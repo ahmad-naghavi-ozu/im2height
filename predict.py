@@ -26,17 +26,17 @@ def get_dynamic_predict_config(image_size=(256, 256), num_gpus=1):
 
 
 def run(dataset_path=None, input_files=None, output_dir="predictions", weights=None, 
-        input_type="rgb", auto_find_weights=True, quiet=False):
+        auto_find_weights=True, quiet=False):
     """
-    Run predictions using trained Im2Height model.
+    Run predictions using trained Im2Height model for RGB to DSM conversion.
     
     Args:
         dataset_path: Path to dataset directory (for structured datasets)
         input_files: List of input files (for direct file prediction)
         output_dir: Directory to save predictions
         weights: Path to model weights (auto-finds if None)
-        input_type: Input modality for structured datasets
         auto_find_weights: Whether to auto-find weights if not specified
+        quiet: Suppress verbose output
     """
     
     # Handle input specification
@@ -55,7 +55,7 @@ def run(dataset_path=None, input_files=None, output_dir="predictions", weights=N
     if input_files is not None:
         prediction_dataset = PredictionDataset(input_files)
     else:
-        prediction_dataset = PredictionDataset(dataset_path, 'test', input_type)
+        prediction_dataset = PredictionDataset(dataset_path, 'test')
     
     # Get dataset characteristics
     if len(prediction_dataset) > 0:
@@ -189,8 +189,6 @@ if __name__ == '__main__':
                         help="Output directory for predictions")
     parser.add_argument("-w", "--weights", type=str, default=None,
                         help="Path to model weights (auto-finds if not specified)")
-    parser.add_argument("-i", "--input_type", type=str, default="rgb",
-                        help="Input modality for structured datasets")
     parser.add_argument("--no_auto_weights", action="store_true",
                         help="Disable automatic weight finding")
     parser.add_argument("--quiet", action="store_true",
@@ -220,7 +218,6 @@ if __name__ == '__main__':
             input_files=args.input_files,
             output_dir=args.output_dir,
             weights=args.weights,
-            input_type=args.input_type,
             auto_find_weights=not args.no_auto_weights,
             quiet=args.quiet
         )
