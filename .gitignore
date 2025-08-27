@@ -22,6 +22,7 @@ ENV/
 
 # Ignore data directory with converted NPY files
 /data/
+/visualization/
 
 # Ignore weights directory with trained models
 /weights/
