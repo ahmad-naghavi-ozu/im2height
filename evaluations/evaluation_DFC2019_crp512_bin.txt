@@ -1,5 +1,5 @@
 IM2HEIGHT EVALUATION REPORT
-Generated: 2025-11-04 08:40:18
+Generated: 2025-11-04 09:31:01
 Dataset: DFC2019_crp512_bin
 ============================================================
 EVALUATION RESULTS FOR DFC2019_CRP512_BIN
@@ -11,6 +11,7 @@ Core Regression Metrics:
   MSE:          54.314700
   RMSE:         4.8994
   MAE:          2.6321
+  R² Score:     -0.2185
 
 Building-Specific Metrics:
   RMSE Building: 9.6378
