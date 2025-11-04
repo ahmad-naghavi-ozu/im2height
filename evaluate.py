@@ -12,6 +12,44 @@ import pandas as pd
 from pathlib import Path
 import glob
 
+
+def r2_score(y, yhat, eps=1e-8):
+    """
+    Compute the coefficient of determination (R²) for regression tasks.
+    
+    R² represents the proportion of variance in the dependent variable that is 
+    predictable from the independent variable(s). It ranges from -∞ to 1, where:
+    - 1.0 indicates perfect prediction
+    - 0.0 indicates the model performs no better than a horizontal line at the mean
+    - Negative values indicate the model performs worse than the mean
+    
+    Args:
+        y (np.ndarray): Ground truth values (1D or 2D array)
+        yhat (np.ndarray): Predicted values (1D or 2D array)
+        eps (float): Small epsilon value to avoid division by zero
+        
+    Returns:
+        float: R² score computed across all pixels, or None if input is empty
+    """
+    # Flatten arrays to ensure 1D computation across all pixels
+    y_flat = y.flatten()
+    yhat_flat = yhat.flatten()
+    
+    if y_flat.size == 0:
+        return None
+    
+    # Residual sum of squares
+    ss_res = np.sum((y_flat - yhat_flat) ** 2)
+    
+    # Total sum of squares
+    ss_tot = np.sum((y_flat - np.mean(y_flat)) ** 2)
+    
+    # Handle edge case where all ground truth values are the same
+    if ss_tot < eps:
+        return 0.0
+    
+    return 1.0 - ss_res / (ss_tot + eps)
+
 class HeightRegressionMetrics(object):
     def __init__(self):
         self.reset()
@@ -29,6 +67,7 @@ class HeightRegressionMetrics(object):
         self.delta1_sum = 0.0
         self.delta2_sum = 0.0
         self.delta3_sum = 0.0
+        self.r2_sum = 0.0
         self.total_samples = 0
         self.img_sample = 0
         self.count_mid_rise = 0
@@ -117,6 +156,11 @@ class HeightRegressionMetrics(object):
         self.delta2_sum += (maxRatio < 1.25 ** 2).mean()
         self.delta3_sum += (maxRatio < 1.25 ** 3).mean()
         
+        # R² SCORE METRIC
+        r2 = r2_score(gt_image, pre_image, eps=eps)
+        if r2 is not None:
+            self.r2_sum += r2
+        
         self.img_sample += 1
 
     def calculate_metrics(self):
@@ -140,8 +184,9 @@ class HeightRegressionMetrics(object):
         delta1 = self.delta1_sum / self.img_sample
         delta2 = self.delta2_sum / self.img_sample
         delta3 = self.delta3_sum / self.img_sample
+        r2 = self.r2_sum / self.img_sample
         
-        return mse, rmse, rmse_building, high_rise_rmse, mid_rise_rmse, low_rise_rmse, mae, delta1, delta2, delta3
+        return mse, rmse, rmse_building, high_rise_rmse, mid_rise_rmse, low_rise_rmse, mae, delta1, delta2, delta3, r2
 
 
 def load_image_data(file_path):
@@ -338,7 +383,7 @@ def evaluate_dataset(dataset_path, predictions_path, split='test', verbose=True)
         raise ValueError("No files were successfully processed")
     
     # Calculate final metrics
-    mse, rmse, rmse_building, high_rise_rmse, mid_rise_rmse, low_rise_rmse, mae, delta1, delta2, delta3 = metrics.calculate_metrics()
+    mse, rmse, rmse_building, high_rise_rmse, mid_rise_rmse, low_rise_rmse, mae, delta1, delta2, delta3, r2 = metrics.calculate_metrics()
     
     results = {
         'processed_files': processed_count,
@@ -347,6 +392,7 @@ def evaluate_dataset(dataset_path, predictions_path, split='test', verbose=True)
         'mse': mse,
         'rmse': rmse,
         'mae': mae,
+        'r2_score': r2,
         'rmse_building': rmse_building,
         # rmse_matched removed - not applicable for IM2HEIGHT
         'rmse_high_rise': high_rise_rmse,
@@ -379,6 +425,7 @@ def print_results(results, dataset_name):
     print(f"  MSE:          {results['mse']:.6f}")
     print(f"  RMSE:         {results['rmse']:.4f}")
     print(f"  MAE:          {results['mae']:.4f}")
+    print(f"  R² Score:     {results['r2_score']:.4f}")
     
     print(f"\nBuilding-Specific Metrics:")
     print(f"  RMSE Building: {results['rmse_building']:.4f}")
@@ -411,6 +458,7 @@ def save_results_csv(results, dataset_name, output_dir, csv_filename=None):
         'mse': [results['mse']],
         'rmse': [results['rmse']],
         'mae': [results['mae']],
+        'r2_score': [results['r2_score']],
         'rmse_building': [results['rmse_building']],
         # rmse_matched removed - not applicable for IM2HEIGHT
         'rmse_low_rise': [results['rmse_low_rise']],
@@ -468,6 +516,7 @@ def save_terminal_output(results, dataset_name, csv_filename):
         f"  MSE:          {results['mse']:.6f}",
         f"  RMSE:         {results['rmse']:.4f}",
         f"  MAE:          {results['mae']:.4f}",
+        f"  R² Score:     {results['r2_score']:.4f}",
         f"",
         f"Building-Specific Metrics:",
         f"  RMSE Building: {results['rmse_building']:.4f}",
